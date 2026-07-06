@@ -8,12 +8,21 @@ PARENT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 os.environ["PM2_HOME"] = os.path.abspath(os.path.join(PARENT_DIR, ".pm2"))
 
 def run_cmd(args, env=None):
-    """Chạy lệnh hệ thống và trả về stdout, stderr, exit code (tự động cấu hình PATH)."""
+    """Chạy lệnh hệ thống và trả về stdout, stderr, exit code (tự động cấu hình PATH và đồng bộ môi trường)."""
     if env is None:
         env = os.environ.copy()
         
+    # Đồng bộ hóa các biến môi trường của Admin sang biến chuẩn của Windows phục vụ Service SYSTEM
+    for key in ["APPDATA", "LOCALAPPDATA", "USERPROFILE"]:
+        user_key = f"{key}_USER"
+        if user_key in env and env[user_key]:
+            env[key] = env[user_key]
+            
+    if "USERPROFILE" in env and env["USERPROFILE"]:
+        env["HOME"] = env["USERPROFILE"]
+        
     # Tự động bổ sung đường dẫn NPM Global vào PATH trên Windows để tìm thấy pm2
-    appdata = os.environ.get("APPDATA_USER") or os.environ.get("APPDATA")
+    appdata = env.get("APPDATA")
     if appdata:
         npm_path = os.path.abspath(os.path.join(appdata, "npm"))
         if npm_path not in env.get("PATH", ""):

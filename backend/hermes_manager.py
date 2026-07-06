@@ -226,7 +226,7 @@ def create_profile(name, model_config):
     return True
 
 def start_profile_gateway(name):
-    """Khởi chạy Gateway cho một profile bằng PM2 (có kiểm tra giải phóng cổng)."""
+    """Khởi chạy Gateway cho một profile bằng PM2 (có kiểm tra giải phóng cổng và tương thích Service SYSTEM)."""
     if not is_hermes_installed():
         raise Exception("Hermes Agent chưa được cài đặt.")
         
@@ -240,11 +240,28 @@ def start_profile_gateway(name):
         except Exception as e:
             print(f"[CHECK] Cảnh báo lỗi khi kiểm tra giải phóng cổng {port}: {e}")
             
-    # Lệnh chạy qua PM2 sử dụng hermes.exe trong venv
-    cmd = f'pm2 start "{VENV_HERMES_EXE}" --name "{pm2_name}" --cwd "{HERMES_DIR}" -- -p {name} gateway run --replace'
+    # Lệnh chạy qua PM2 sử dụng hermes.exe trong venv (chỉ định --interpreter none để PM2 không dùng Node.js chạy binary)
+    cmd = f'pm2 start "{VENV_HERMES_EXE}" --interpreter none --name "{pm2_name}" --cwd "{HERMES_DIR}" -- -p {name} gateway run --replace'
     
+    # Đồng bộ hóa biến môi trường để PM2 truyền biến môi trường của user Admin cho hermes.exe (đặc biệt khi chạy dưới SYSTEM)
+    env = os.environ.copy()
+    for key in ["APPDATA", "LOCALAPPDATA", "USERPROFILE"]:
+        user_key = f"{key}_USER"
+        if user_key in env and env[user_key]:
+            env[key] = env[user_key]
+            
+    if "USERPROFILE" in env and env["USERPROFILE"]:
+        env["HOME"] = env["USERPROFILE"]
+        
+    # Bổ sung NPM Global vào PATH để gọi lệnh pm2
+    appdata = env.get("APPDATA")
+    if appdata:
+        npm_path = os.path.abspath(os.path.join(appdata, "npm"))
+        if npm_path not in env.get("PATH", ""):
+            env["PATH"] = env.get("PATH", "") + os.pathsep + npm_path
+            
     # Chạy lệnh
-    res = subprocess.run(cmd, shell=True, capture_output=True, text=True, encoding='utf-8', errors='ignore')
+    res = subprocess.run(cmd, shell=True, capture_output=True, text=True, encoding='utf-8', errors='ignore', env=env)
     if res.returncode != 0:
         raise Exception(f"Lỗi khởi chạy PM2 cho profile '{name}': {res.stderr or res.stdout}")
     
@@ -286,10 +303,27 @@ def delete_profile(name):
     return True
 
 def run_installation_worker():
-    """Tác vụ cài đặt chạy ngầm (Git clone -> Venv -> Pip install)."""
+    """Tác vụ cài đặt chạy ngầm (Git clone -> Venv -> Pip install) tương thích Service SYSTEM."""
     try:
         set_install_state("running", 10, "Bắt đầu cài đặt Hermes Agent...", append=False)
         os.makedirs(HERMES_DIR, exist_ok=True)
+        
+        # Đồng bộ hóa biến môi trường để chạy các lệnh tải/cài đặt dưới quyền Admin (đặc biệt khi chạy dưới SYSTEM)
+        env = os.environ.copy()
+        for key in ["APPDATA", "LOCALAPPDATA", "USERPROFILE"]:
+            user_key = f"{key}_USER"
+            if user_key in env and env[user_key]:
+                env[key] = env[user_key]
+                
+        if "USERPROFILE" in env and env["USERPROFILE"]:
+            env["HOME"] = env["USERPROFILE"]
+            
+        # Bổ sung PATH NPM global vào PATH
+        appdata = env.get("APPDATA")
+        if appdata:
+            npm_path = os.path.abspath(os.path.join(appdata, "npm"))
+            if npm_path not in env.get("PATH", ""):
+                env["PATH"] = env.get("PATH", "") + os.pathsep + npm_path
         
         # 1. Git clone
         if not os.path.exists(HERMES_AGENT_DIR):
@@ -297,28 +331,28 @@ def run_installation_worker():
             repo_url = "https://github.com/NousResearch/hermes-agent.git"
             
             # Sử dụng subprocess chạy git clone
-            res = subprocess.run(f'git clone {repo_url} "{HERMES_AGENT_DIR}"', shell=True, capture_output=True, text=True, encoding='utf-8', errors='ignore')
+            res = subprocess.run(f'git clone {repo_url} "{HERMES_AGENT_DIR}"', shell=True, capture_output=True, text=True, encoding='utf-8', errors='ignore', env=env)
             if res.returncode != 0:
                 raise Exception(f"Lỗi git clone: {res.stderr or res.stdout}")
         else:
             set_install_state("running", 30, "Thư mục mã nguồn hermes-agent đã tồn tại, đang cập nhật mã nguồn mới nhất...")
-            subprocess.run('git pull', shell=True, cwd=HERMES_AGENT_DIR, capture_output=True, encoding='utf-8', errors='ignore')
+            subprocess.run('git pull', shell=True, cwd=HERMES_AGENT_DIR, capture_output=True, encoding='utf-8', errors='ignore', env=env)
             
         # 2. Tạo Virtual Environment
         venv_dir = os.path.join(HERMES_AGENT_DIR, "venv")
         if not os.path.exists(VENV_PYTHON):
             set_install_state("running", 45, "Đang tạo môi trường ảo Python (virtualenv venv)...")
-            res = subprocess.run(f'python -m venv "{venv_dir}"', shell=True, capture_output=True, text=True, encoding='utf-8', errors='ignore')
+            res = subprocess.run(f'python -m venv "{venv_dir}"', shell=True, capture_output=True, text=True, encoding='utf-8', errors='ignore', env=env)
             if res.returncode != 0:
                 raise Exception(f"Lỗi tạo venv: {res.stderr or res.stdout}")
                 
         # 3. Pip install dependencies
         set_install_state("running", 65, "Đang cài đặt các dependencies thông qua pip install -e . (Quá trình này có thể mất 1-2 phút)...")
         # Upgrade pip trước
-        subprocess.run(f'"{VENV_PYTHON}" -m pip install --upgrade pip', shell=True, capture_output=True, encoding='utf-8', errors='ignore')
+        subprocess.run(f'"{VENV_PYTHON}" -m pip install --upgrade pip', shell=True, capture_output=True, encoding='utf-8', errors='ignore', env=env)
         
         # Chạy pip install
-        res = subprocess.run(f'"{VENV_PYTHON}" -m pip install -e .', shell=True, cwd=HERMES_AGENT_DIR, capture_output=True, text=True, encoding='utf-8', errors='ignore')
+        res = subprocess.run(f'"{VENV_PYTHON}" -m pip install -e .', shell=True, cwd=HERMES_AGENT_DIR, capture_output=True, text=True, encoding='utf-8', errors='ignore', env=env)
         if res.returncode != 0:
             raise Exception(f"Lỗi pip install: {res.stderr or res.stdout}")
             
