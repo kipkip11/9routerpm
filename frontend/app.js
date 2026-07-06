@@ -40,10 +40,22 @@ document.addEventListener("DOMContentLoaded", () => {
     // Tab buttons
     const tabBtnProxy = document.getElementById("tab-btn-proxy");
     const tabBtnHermes = document.getElementById("tab-btn-hermes");
+    const tabBtnCleanup = document.getElementById("tab-btn-cleanup");
     const sectionProxy = document.getElementById("section-proxy");
     const sectionHermes = document.getElementById("section-hermes");
+    const sectionCleanup = document.getElementById("section-cleanup");
     const btnOpenProxyModal = document.getElementById("btn-open-create-modal");
     const btnOpenHermesModal = document.getElementById("btn-open-hermes-create-modal");
+
+    // Cleanup elements
+    const btnScanCleanup = document.getElementById("btn-scan-cleanup");
+    const btnPurgeCleanup = document.getElementById("btn-purge-cleanup");
+    const badgeTasksCount = document.getElementById("badge-tasks-count");
+    const badgePidsCount = document.getElementById("badge-pids-count");
+    const tableBodyTasks = document.getElementById("table-body-tasks");
+    const tableBodyPids = document.getElementById("table-body-pids");
+    const checkAllTasks = document.getElementById("check-all-tasks");
+    const checkAllPids = document.getElementById("check-all-pids");
 
     // Initialization
     fetchSystemStatus();
@@ -52,25 +64,39 @@ document.addEventListener("DOMContentLoaded", () => {
     // Setup Tab click listeners
     tabBtnProxy.addEventListener("click", () => switchTab("proxy"));
     tabBtnHermes.addEventListener("click", () => switchTab("hermes"));
+    tabBtnCleanup.addEventListener("click", () => switchTab("cleanup"));
 
     function switchTab(tab) {
         activeTab = tab;
         if (tab === "proxy") {
             tabBtnProxy.classList.add("active");
             tabBtnHermes.classList.remove("active");
+            tabBtnCleanup.classList.remove("active");
             sectionProxy.style.display = "block";
             sectionHermes.style.display = "none";
+            sectionCleanup.style.display = "none";
             btnOpenProxyModal.style.display = "block";
             btnOpenHermesModal.style.display = "none";
             fetchInstances();
-        } else {
+        } else if (tab === "hermes") {
             tabBtnProxy.classList.remove("active");
             tabBtnHermes.classList.add("active");
+            tabBtnCleanup.classList.remove("active");
             sectionProxy.style.display = "none";
             sectionHermes.style.display = "block";
+            sectionCleanup.style.display = "none";
             btnOpenProxyModal.style.display = "none";
             btnOpenHermesModal.style.display = "block";
             checkHermesStatus();
+        } else if (tab === "cleanup") {
+            tabBtnProxy.classList.remove("active");
+            tabBtnHermes.classList.remove("active");
+            tabBtnCleanup.classList.add("active");
+            sectionProxy.style.display = "none";
+            sectionHermes.style.display = "none";
+            sectionCleanup.style.display = "block";
+            btnOpenProxyModal.style.display = "none";
+            btnOpenHermesModal.style.display = "none";
         }
     }
 
@@ -1124,6 +1150,159 @@ document.addEventListener("DOMContentLoaded", () => {
             setTimeout(() => toast.remove(), 300);
         }, 4500);
     }
+
+    // --- Logic Dọn Dẹp Xung Đột Hệ Thống ---
+    let detectedTasks = [];
+    let detectedPids = [];
+
+    btnScanCleanup.addEventListener("click", async () => {
+        btnScanCleanup.disabled = true;
+        btnScanCleanup.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Đang quét hệ thống...`;
+        tableBodyTasks.innerHTML = `<tr><td colspan="3" style="text-align: center; padding: 30px;"><div class="spinner" style="margin: 0 auto 10px;"></div> Đang quét các tác vụ lên lịch cũ...</td></tr>`;
+        tableBodyPids.innerHTML = `<tr><td colspan="3" style="text-align: center; padding: 30px;"><div class="spinner" style="margin: 0 auto 10px;"></div> Đang quét các tiến trình PM2 cũ...</td></tr>`;
+        
+        try {
+            const response = await fetch(`${API_URL}/api/cleanup/scan`);
+            const data = await response.json();
+            
+            detectedTasks = data.scheduled_tasks || [];
+            detectedPids = data.pm2_processes || [];
+            
+            renderCleanupResults();
+            showToast(`Đã quét xong: tìm thấy ${detectedTasks.length} tác vụ và ${detectedPids.length} tiến trình PM2 cũ.`, "info");
+        } catch (error) {
+            console.error("Lỗi quét hệ thống:", error);
+            showToast("Lỗi khi quét hệ thống: " + error.message, "error");
+            tableBodyTasks.innerHTML = `<tr><td colspan="3" style="text-align: center; color: var(--danger); padding: 20px;">Lỗi khi tải dữ liệu.</td></tr>`;
+            tableBodyPids.innerHTML = `<tr><td colspan="3" style="text-align: center; color: var(--danger); padding: 20px;">Lỗi khi tải dữ liệu.</td></tr>`;
+        } finally {
+            btnScanCleanup.disabled = false;
+            btnScanCleanup.innerHTML = `<i class="fa-solid fa-arrows-rotate"></i> Bắt đầu Quét Hệ Thống`;
+        }
+    });
+
+    function renderCleanupResults() {
+        // Render Tasks
+        badgeTasksCount.innerText = detectedTasks.length;
+        checkAllTasks.checked = false;
+        if (detectedTasks.length === 0) {
+            tableBodyTasks.innerHTML = `<tr><td colspan="3" style="text-align: center; color: var(--text-muted); padding: 40px 10px;"><i class="fa-solid fa-circle-check" style="font-size: 2rem; color: var(--accent-emerald); margin-bottom: 10px; display: block;"></i>Sạch sẽ! Không phát hiện tác vụ Scheduler cũ nào xung đột.</td></tr>`;
+        } else {
+            tableBodyTasks.innerHTML = detectedTasks.map((task, idx) => `
+                <tr style="border-bottom: 1px solid var(--border); transition: background 0.2s;">
+                    <td style="text-align: center; padding: 12px 10px;"><input type="checkbox" class="task-checkbox" data-name="${escapeHtml(task.name)}" style="transform: scale(1.1); cursor: pointer;"></td>
+                    <td style="padding: 12px 10px; font-weight: 500; color: var(--text-main); font-family: monospace;">${escapeHtml(task.name)}</td>
+                    <td style="padding: 12px 10px;"><span class="status-badge" style="background: rgba(239, 68, 68, 0.15); color: var(--danger); padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: 500;">${escapeHtml(task.status)}</span></td>
+                </tr>
+            `).join("");
+        }
+
+        // Render PIDs
+        badgePidsCount.innerText = detectedPids.length;
+        checkAllPids.checked = false;
+        if (detectedPids.length === 0) {
+            tableBodyPids.innerHTML = `<tr><td colspan="3" style="text-align: center; color: var(--text-muted); padding: 40px 10px;"><i class="fa-solid fa-circle-check" style="font-size: 2rem; color: var(--accent-emerald); margin-bottom: 10px; display: block;"></i>Sạch sẽ! Không phát hiện tiến trình PM2 cũ nào chạy nổi ngoài luồng.</td></tr>`;
+        } else {
+            tableBodyPids.innerHTML = detectedPids.map(proc => `
+                <tr style="border-bottom: 1px solid var(--border); transition: background 0.2s; ${proc.is_current ? 'background: rgba(59, 130, 246, 0.08);' : ''}">
+                    <td style="text-align: center; padding: 12px 10px;"><input type="checkbox" class="pid-checkbox" data-pid="${proc.pid}" style="transform: scale(1.1); cursor: pointer;" ${proc.is_current ? 'disabled' : ''}></td>
+                    <td style="padding: 12px 10px; font-weight: bold; color: ${proc.is_current ? 'var(--primary)' : 'var(--text-main)'};">${proc.pid} ${proc.is_current ? '<span style="font-size:0.75rem; font-weight:normal; background: rgba(59,130,246,0.2); color: var(--primary); padding:1px 5px; border-radius:3px; margin-left:5px;">Hiện tại</span>' : ''}</td>
+                    <td style="padding: 12px 10px; font-size: 0.85rem; color: var(--text-muted); word-break: break-all; font-family: monospace;" title="${escapeHtml(proc.command_line)}">${escapeHtml(proc.command_line)}</td>
+                </tr>
+            `).join("");
+        }
+
+        // Setup checkboxes events
+        setupCleanupCheckboxes();
+        togglePurgeButton();
+    }
+
+    function setupCleanupCheckboxes() {
+        // Check All Tasks
+        checkAllTasks.addEventListener("change", () => {
+            const checkboxes = tableBodyTasks.querySelectorAll(".task-checkbox");
+            checkboxes.forEach(cb => cb.checked = checkAllTasks.checked);
+            togglePurgeButton();
+        });
+
+        // Check All PIDs
+        checkAllPids.addEventListener("change", () => {
+            const checkboxes = tableBodyPids.querySelectorAll(".pid-checkbox");
+            checkboxes.forEach(cb => {
+                if (!cb.disabled) cb.checked = checkAllPids.checked;
+            });
+            togglePurgeButton();
+        });
+
+        // Individual checkboxes
+        const allCbs = document.querySelectorAll(".task-checkbox, .pid-checkbox");
+        allCbs.forEach(cb => {
+            cb.addEventListener("change", togglePurgeButton);
+        });
+    }
+
+    function togglePurgeButton() {
+        const selectedTasks = getSelectedTasks();
+        const selectedPids = getSelectedPids();
+        
+        if (selectedTasks.length > 0 || selectedPids.length > 0) {
+            btnPurgeCleanup.style.display = "inline-flex";
+            btnPurgeCleanup.innerHTML = `<i class="fa-solid fa-trash-can"></i> XÓA BỎ CÁC MỤC ĐÃ CHỌN (${selectedTasks.length + selectedPids.length})`;
+        } else {
+            btnPurgeCleanup.style.display = "none";
+        }
+    }
+
+    function getSelectedTasks() {
+        const checkboxes = tableBodyTasks.querySelectorAll(".task-checkbox:checked");
+        return Array.from(checkboxes).map(cb => cb.getAttribute("data-name"));
+    }
+
+    function getSelectedPids() {
+        const checkboxes = tableBodyPids.querySelectorAll(".pid-checkbox:checked");
+        return Array.from(checkboxes).map(cb => parseInt(cb.getAttribute("data-pid")));
+    }
+
+    btnPurgeCleanup.addEventListener("click", async () => {
+        const tasks = getSelectedTasks();
+        const pids = getSelectedPids();
+        
+        if (!confirm(`Bạn có chắc chắn muốn xóa sạch ${tasks.length} tác vụ Scheduler và tiêu diệt ${pids.length} tiến trình PM2 cũ được chọn? Thao tác này không thể hoàn tác!`)) {
+            return;
+        }
+        
+        btnPurgeCleanup.disabled = true;
+        btnPurgeCleanup.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Đang dọn dẹp hệ thống...`;
+        
+        try {
+            const response = await fetch(`${API_URL}/api/cleanup/purge`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ tasks, pids })
+            });
+            const data = await response.json();
+            
+            const deletedTasksCount = data.tasks_deleted ? data.tasks_deleted.length : 0;
+            const killedPidsCount = data.pids_killed ? data.pids_killed.length : 0;
+            
+            showToast(`Đã dọn dẹp xong: Xóa ${deletedTasksCount} tác vụ Scheduler, tiêu diệt ${killedPidsCount} tiến trình PM2 cũ.`, "success");
+            
+            if (data.errors && data.errors.length > 0) {
+                console.warn("Một số lỗi xảy ra khi dọn dẹp:", data.errors);
+                showToast("Có lỗi xảy ra với một vài mục, hãy kiểm tra log console.", "error");
+            }
+            
+            // Tự động quét lại để cập nhật bảng
+            btnScanCleanup.click();
+        } catch (error) {
+            console.error("Lỗi dọn dẹp hệ thống:", error);
+            showToast("Lỗi khi dọn dẹp hệ thống: " + error.message, "error");
+            btnPurgeCleanup.disabled = false;
+            togglePurgeButton();
+        }
+    });
 
     // Helper: Escape HTML strings to prevent XSS
     function escapeHtml(str) {

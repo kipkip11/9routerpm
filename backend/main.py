@@ -1,6 +1,15 @@
 import os
 import shutil
 import sys
+import asyncio
+
+# Khắc phục lỗi ConnectionResetError [WinError 10054] làm sập asyncio trên Windows
+if sys.platform == 'win32':
+    try:
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    except Exception as e:
+        pass
+
 from fastapi import FastAPI, HTTPException, Body, BackgroundTasks
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -99,7 +108,23 @@ class ActionRequest(BaseModel):
     action: str  # start, stop, restart, delete
     delete_files: Optional[bool] = False
 
+class PurgeRequest(BaseModel):
+    tasks: Optional[list] = []
+    pids: Optional[list] = []
+
 # API endpoints
+@app.get("/api/cleanup/scan")
+def get_cleanup_scan():
+    """Quét các tiến trình PM2 cũ và các tác vụ lên lịch Scheduler xung đột."""
+    from backend import cleanup_manager
+    return cleanup_manager.scan_system()
+
+@app.post("/api/cleanup/purge")
+def post_cleanup_purge(req: PurgeRequest):
+    """Xóa bỏ Scheduled Tasks và tiêu diệt tiến trình PM2 cũ được chọn."""
+    from backend import cleanup_manager
+    return cleanup_manager.purge_system(tasks_to_delete=req.tasks, pids_to_kill=req.pids)
+
 @app.get("/api/status")
 def get_system_status():
     """Lấy trạng thái tổng quan của hệ thống và PM2."""

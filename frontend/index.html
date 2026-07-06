@@ -45,6 +45,9 @@
             <button class="nav-btn" id="tab-btn-hermes">
                 <i class="fa-solid fa-brain"></i> Quản lý Hermes Agent
             </button>
+            <button class="nav-btn" id="tab-btn-cleanup">
+                <i class="fa-solid fa-broom"></i> Dọn dẹp xung đột
+            </button>
         </div>
 
         <!-- Main Content -->
@@ -206,6 +209,85 @@
                             </div>
                         </div>
                     </section>
+                </div>
+            </div>
+
+            <!-- Section Dọn dẹp xung đột -->
+            <div id="section-cleanup" class="tab-content" style="display: none; padding: 20px 0;">
+                <div class="content-header" style="margin-bottom: 25px; display: flex; justify-content: space-between; align-items: center;">
+                    <div class="header-title">
+                        <h2 style="font-size: 1.8rem; font-weight: 700; color: var(--text-main); margin-bottom: 5px;">🧹 Dọn Dẹp Xung Đột Hệ Thống</h2>
+                        <p style="color: var(--text-muted); font-size: 0.95rem;">Quét và xóa bỏ các Scheduled Tasks cũ hoặc các tiến trình PM2 chạy ngầm (node.exe Daemon) gây chiếm dụng tài nguyên máy chủ.</p>
+                    </div>
+                    <button class="btn btn-primary" id="btn-scan-cleanup" style="background: linear-gradient(135deg, var(--danger), var(--orange)); border: none; box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3); padding: 10px 22px; font-weight: 600;">
+                        <i class="fa-solid fa-arrows-rotate"></i> Bắt đầu Quét Hệ Thống
+                    </button>
+                </div>
+
+                <div class="cleanup-results-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 25px;">
+                    <!-- Cột Scheduled Tasks -->
+                    <div class="card" style="padding: 24px; border-radius: var(--border-radius); background: var(--bg-card); border: 1px solid var(--border); box-shadow: 0 4px 20px rgba(0,0,0,0.15);">
+                        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 12px;">
+                            <h3 style="display: flex; align-items: center; gap: 10px; color: var(--text-main); font-weight: 600; font-size: 1.2rem; margin: 0;">
+                                <i class="fa-solid fa-calendar-days text-primary"></i> Windows Scheduled Tasks Cũ
+                            </h3>
+                            <span class="badge" id="badge-tasks-count" style="background: var(--bg-body); border: 1px solid var(--border); color: var(--text-main); font-size: 0.85rem; padding: 2px 10px; border-radius: 20px; font-weight: bold;">0</span>
+                        </div>
+                        <div class="table-container" style="max-height: 400px; overflow-y: auto;">
+                            <table class="table" style="width: 100%; border-collapse: collapse;">
+                                <thead>
+                                    <tr style="border-bottom: 1px solid var(--border); text-align: left;">
+                                        <th style="width: 40px; text-align: center; padding: 10px;"><input type="checkbox" id="check-all-tasks" style="transform: scale(1.2);"></th>
+                                        <th style="padding: 10px; color: var(--text-muted); font-weight: 500;">Tên Tác Vụ</th>
+                                        <th style="padding: 10px; color: var(--text-muted); font-weight: 500;">Trạng Thái</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="table-body-tasks">
+                                    <tr>
+                                        <td colspan="3" style="text-align: center; color: var(--text-muted); padding: 40px 10px;">
+                                            <i class="fa-solid fa-search" style="font-size: 2rem; margin-bottom: 10px; display: block; opacity: 0.5;"></i>
+                                            Nhấn nút "Bắt đầu Quét Hệ Thống" ở trên để kiểm tra...
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Cột PM2 node.exe cũ -->
+                    <div class="card" style="padding: 24px; border-radius: var(--border-radius); background: var(--bg-card); border: 1px solid var(--border); box-shadow: 0 4px 20px rgba(0,0,0,0.15);">
+                        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 12px;">
+                            <h3 style="display: flex; align-items: center; gap: 10px; color: var(--text-main); font-weight: 600; font-size: 1.2rem; margin: 0;">
+                                <i class="fa-solid fa-microchip text-warning"></i> Các Daemon PM2 chạy ngầm (node.exe)
+                            </h3>
+                            <span class="badge" id="badge-pids-count" style="background: var(--bg-body); border: 1px solid var(--border); color: var(--text-main); font-size: 0.85rem; padding: 2px 10px; border-radius: 20px; font-weight: bold;">0</span>
+                        </div>
+                        <div class="table-container" style="max-height: 400px; overflow-y: auto;">
+                            <table class="table" style="width: 100%; border-collapse: collapse;">
+                                <thead>
+                                    <tr style="border-bottom: 1px solid var(--border); text-align: left;">
+                                        <th style="width: 40px; text-align: center; padding: 10px;"><input type="checkbox" id="check-all-pids" style="transform: scale(1.2);"></th>
+                                        <th style="padding: 10px; color: var(--text-muted); font-weight: 500; width: 80px;">PID</th>
+                                        <th style="padding: 10px; color: var(--text-muted); font-weight: 500;">Dòng lệnh / Command</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="table-body-pids">
+                                    <tr>
+                                        <td colspan="3" style="text-align: center; color: var(--text-muted); padding: 40px 10px;">
+                                            <i class="fa-solid fa-search" style="font-size: 2rem; margin-bottom: 10px; display: block; opacity: 0.5;"></i>
+                                            Nhấn nút "Bắt đầu Quét Hệ Thống" ở trên để kiểm tra...
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="cleanup-actions" style="display: flex; justify-content: flex-end; gap: 15px;">
+                    <button class="btn" id="btn-purge-cleanup" style="background: var(--danger); color: white; border: none; padding: 12px 30px; font-weight: 600; border-radius: var(--border-radius); display: none; box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4); cursor: pointer; align-items: center; gap: 8px;">
+                        <i class="fa-solid fa-trash-can"></i> XÓA BỎ CÁC MỤC ĐÃ CHỌN
+                    </button>
                 </div>
             </div>
         </main>
