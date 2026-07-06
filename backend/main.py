@@ -188,11 +188,64 @@ def get_system_status():
 
 @app.get("/api/instances")
 def get_all_instances():
-    """Lấy danh sách các instance kết hợp thông tin cấu hình và trạng thái PM2."""
+    """Lấy danh sách các instance kết hợp cấu hình và tự động import các proxy 9router đang chạy ngầm trong PM2."""
     configs = file_manager.load_instances()
     pm2_apps = pm2_manager.get_pm2_list()
     pm2_dict = {app["name"]: app for app in pm2_apps}
     
+    config_changed = False
+    
+    # Tự động quét và import các tiến trình PM2 đang chạy chứa chữ '9router'
+    for app in pm2_apps:
+        app_name = app.get("name")
+        if not app_name:
+            continue
+            
+        # Kiểm tra xem app này đã nằm trong instances.json chưa
+        if app_name not in configs:
+            # Điều kiện nhận dạng: Tên app chứa '9router' và không phải là tiến trình web quản lý '9routerpm' hay 'main'
+            is_9router_proxy = "9router" in app_name.lower() and app_name.lower() not in ["9routerpm", "main"]
+            
+            # Hoặc thư mục cwd chứa '9router' hoặc 'instances'
+            cwd_path = app.get("cwd") or ""
+            is_in_instances_dir = "instances" in cwd_path.lower() or "9router" in cwd_path.lower()
+            
+            if is_9router_proxy or (cwd_path and is_in_instances_dir):
+                # Tự động phân giải PORT của app PM2
+                port = None
+                env_port = app.get("env", {}).get("PORT")
+                if env_port:
+                    try:
+                        port = int(env_port)
+                    except:
+                        pass
+                
+                # Nếu không lấy được port từ env, thử quét file .env của nó
+                if not port and cwd_path and os.path.exists(os.path.join(cwd_path, ".env")):
+                    try:
+                        with open(os.path.join(cwd_path, ".env"), 'r', encoding='utf-8', errors='ignore') as f:
+                            for line in f:
+                                if line.strip().startswith("PORT="):
+                                    port = int(line.strip().split("=")[1].strip())
+                                    break
+                    except:
+                        pass
+                
+                # Thêm vào config
+                configs[app_name] = {
+                    "name": app_name,
+                    "port": port or 20128,  # Fallback port mặc định
+                    "path": cwd_path or os.path.abspath(os.path.join(file_manager.INSTANCES_DIR, app_name)),
+                    "script": "npm",
+                    "args": "start",
+                    "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                }
+                config_changed = True
+                print(f"[AUTO-IMPORT] Đã tự động nhận dạng và nạp proxy '{app_name}' đang chạy ngầm vào danh sách quản lý.")
+                
+    if config_changed:
+        file_manager.save_instances(configs)
+        
     result = []
     for name, cfg in configs.items():
         pm2_info = pm2_dict.get(name, {

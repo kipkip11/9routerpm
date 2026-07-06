@@ -82,6 +82,9 @@ def get_pm2_list():
             pm2_env = app.get("pm2_env", {})
             monit = app.get("monit", {})
             
+            # Lấy biến môi trường PORT từ PM2 env nếu có
+            env_vars = pm2_env.get("env", {}) or {}
+            
             apps.append({
                 "name": app.get("name"),
                 "pid": app.get("pid"),
@@ -92,6 +95,8 @@ def get_pm2_list():
                 "restart_count": pm2_env.get("restart_time", 0),
                 "out_log": pm2_env.get("pm_out_log_path"),
                 "err_log": pm2_env.get("pm_err_log_path"),
+                "cwd": pm2_env.get("pm_cwd"),
+                "env": env_vars
             })
         return apps
     except Exception as e:
