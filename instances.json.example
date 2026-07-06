@@ -1,0 +1,10 @@
+{
+  "9router-example": {
+    "name": "9router-example",
+    "port": 20128,
+    "path": "instances/9router-example",
+    "api_key": "[REDACTED]",
+    "script": "npm",
+    "args": "start"
+  }
+}

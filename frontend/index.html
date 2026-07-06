@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>9router PM2 Manager</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar/Header -->
+        <header class="app-header">
+            <div class="header-logo">
+                <div class="logo-icon">
+                    <i class="fa-solid fa-network-wired"></i>
+                </div>
+                <div class="logo-text">
+                    <h1>9router<span>PM</span></h1>
+                    <p>Process & Proxy Manager</p>
+                </div>
+            </div>
+            <div class="header-status">
+                <div class="status-indicator" id="pm2-status-badge">
+                    <span class="dot"></span>
+                    <span class="text">PM2: Đang kết nối</span>
+                </div>
+                <button class="btn btn-primary btn-add" id="btn-open-create-modal">
+                    <i class="fa-solid fa-plus"></i> Thêm Proxy mới
+                </button>
+                <button class="btn btn-primary btn-add" id="btn-open-hermes-create-modal" style="display: none; background: linear-gradient(135deg, var(--secondary), var(--accent-purple)); box-shadow: 0 0 15px rgba(139, 92, 246, 0.3);">
+                    <i class="fa-solid fa-brain"></i> Thêm Agent Profile
+                </button>
+            </div>
+        </header>
+
+        <!-- Navigation Tabs -->
+        <div class="app-navigation">
+            <button class="nav-btn active" id="tab-btn-proxy">
+                <i class="fa-solid fa-network-wired"></i> Quản lý Proxy 9router
+            </button>
+            <button class="nav-btn" id="tab-btn-hermes">
+                <i class="fa-solid fa-brain"></i> Quản lý Hermes Agent
+            </button>
+        </div>
+
+        <!-- Main Content -->
+        <main class="app-main">
+            <!-- Section Proxy -->
+            <div id="section-proxy" class="tab-content active">
+                <!-- Stats Grid -->
+                <section class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon icon-blue">
+                            <i class="fa-solid fa-boxes-stacked"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3>Tổng số Proxy</h3>
+                            <p class="stat-value" id="stat-total">0</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon icon-green">
+                            <i class="fa-solid fa-circle-check"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3>Đang hoạt động</h3>
+                            <p class="stat-value text-success" id="stat-active">0</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon icon-purple">
+                            <i class="fa-solid fa-microchip"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3>Tổng CPU sử dụng</h3>
+                            <p class="stat-value" id="stat-cpu">0%</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon icon-orange">
+                            <i class="fa-solid fa-memory"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3>Tổng RAM sử dụng</h3>
+                            <p class="stat-value" id="stat-memory">0 MB</p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Proxy List Section -->
+                <section class="proxy-list-section">
+                    <div class="section-header">
+                        <h2>Danh sách các Instance Proxy</h2>
+                        <div class="search-bar">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                            <input type="text" id="search-input" placeholder="Tìm kiếm proxy theo tên hoặc cổng...">
+                        </div>
+                    </div>
+
+                    <div class="proxy-grid" id="proxy-list-container">
+                        <!-- Loading Placeholder -->
+                        <div class="loading-state">
+                            <div class="spinner"></div>
+                            <p>Đang tải dữ liệu tiến trình...</p>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Section Hermes -->
+            <div id="section-hermes" class="tab-content" style="display: none;">
+                <!-- Giao diện chưa cài đặt Hermes Agent -->
+                <div id="hermes-not-installed-view" style="display: none;">
+                    <div class="setup-card text-center">
+                        <div class="setup-icon">
+                            <i class="fa-solid fa-circle-exclamation"></i>
+                        </div>
+                        <h2>Hermes Agent chưa được cài đặt</h2>
+                        <p>Hệ thống không phát hiện Hermes Agent được cài đặt tại <code>%LOCALAPPDATA%\hermes\hermes-agent</code>.</p>
+                        <p class="help-text">Ứng dụng có thể tự động tải mã nguồn, tạo môi trường ảo (virtualenv) và cài đặt đầy đủ cho bạn chỉ với 1 cú click chuột.</p>
+                        <button class="btn btn-primary btn-large" id="btn-install-hermes">
+                            <i class="fa-solid fa-download"></i> Cài đặt Hermes Agent tự động
+                        </button>
+                        
+                        <!-- Tiến trình cài đặt -->
+                        <div id="hermes-install-progress-box" class="install-progress-container" style="display: none; margin-top: 2rem;">
+                            <div class="progress-bar-group">
+                                <div class="progress-bar-label">
+                                    <span id="install-progress-text">Đang chuẩn bị...</span>
+                                    <span id="install-progress-percent">0%</span>
+                                </div>
+                                <div class="progress-bar-bg">
+                                    <div class="progress-bar-fill" id="install-progress-bar" style="width: 0%;"></div>
+                                </div>
+                            </div>
+                            <div class="terminal-body" style="margin-top: 1.5rem; text-align: left; background: #000; border-radius: 8px; border: 1px solid var(--border-color);">
+                                <div class="terminal-header" style="background: #111; padding: 0.5rem 1rem; font-size: 0.75rem; border-bottom: 1px solid var(--border-color); color: var(--text-muted);">
+                                    <i class="fa-solid fa-terminal"></i> Nhật ký cài đặt trực tiếp
+                                </div>
+                                <pre id="hermes-install-logs" style="padding: 1rem; font-family: monospace; font-size: 0.8rem; max-height: 250px; overflow-y: auto; color: var(--accent-emerald); margin: 0; white-space: pre-wrap;"></pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Giao diện đã cài đặt Hermes Agent -->
+                <div id="hermes-installed-view" style="display: none;">
+                    <!-- Stats Grid Hermes -->
+                    <section class="stats-grid">
+                        <div class="stat-card hermes-theme">
+                            <div class="stat-icon icon-purple">
+                                <i class="fa-solid fa-brain"></i>
+                            </div>
+                            <div class="stat-info">
+                                <h3>Tổng số Agent Profile</h3>
+                                <p class="stat-value" id="hermes-stat-total">0</p>
+                            </div>
+                        </div>
+                        <div class="stat-card hermes-theme">
+                            <div class="stat-icon icon-green">
+                                <i class="fa-solid fa-circle-check"></i>
+                            </div>
+                            <div class="stat-info">
+                                <h3>Đang chạy ngầm</h3>
+                                <p class="stat-value text-success" id="hermes-stat-active">0</p>
+                            </div>
+                        </div>
+                        <div class="stat-card hermes-theme">
+                            <div class="stat-icon icon-blue">
+                                <i class="fa-solid fa-microchip"></i>
+                            </div>
+                            <div class="stat-info">
+                                <h3>Tổng CPU sử dụng</h3>
+                                <p class="stat-value" id="hermes-stat-cpu">0%</p>
+                            </div>
+                        </div>
+                        <div class="stat-card hermes-theme">
+                            <div class="stat-icon icon-orange">
+                                <i class="fa-solid fa-memory"></i>
+                            </div>
+                            <div class="stat-info">
+                                <h3>Tổng RAM sử dụng</h3>
+                                <p class="stat-value" id="hermes-stat-memory">0 MB</p>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Danh sách Hermes Profiles -->
+                    <section class="proxy-list-section">
+                        <div class="section-header">
+                            <h2>Danh sách các Profile Agent (Chạy ngầm bằng PM2)</h2>
+                            <div class="search-bar">
+                                <i class="fa-solid fa-magnifying-glass"></i>
+                                <input type="text" id="hermes-search-input" placeholder="Tìm kiếm profile theo tên...">
+                            </div>
+                        </div>
+
+                        <div class="proxy-grid" id="hermes-list-container">
+                            <div class="loading-state">
+                                <div class="spinner"></div>
+                                <p>Đang tải danh sách profile...</p>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </main>
+
+        <!-- Footer -->
+        <footer class="app-footer">
+            <p>&copy; 2026 9routerpm | Thiết kế giao diện Premium | Quản lý tiến trình ngầm Windows</p>
+        </footer>
+    </div>
+
+    <!-- Modal: Tạo Mới Instance -->
+    <div class="modal" id="create-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fa-solid fa-plus-circle"></i> Thêm Proxy Instance Mới</h2>
+                <button class="btn-close-modal" data-modal="create-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="create-form">
+                    <div class="form-group">
+                        <label for="new-name">Tên Instance <span class="required">*</span></label>
+                        <input type="text" id="new-name" placeholder="Ví dụ: editvideo-proxy, backup-proxy" required>
+                        <small class="form-help">Chỉ bao gồm chữ cái, số, dấu gạch ngang và gạch dưới.</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="new-src-select">Thư mục nguồn 9router <span class="required">*</span></label>
+                        <select id="new-src-select">
+                            <option value="">-- Đang quét hệ thống... --</option>
+                        </select>
+                    </div>
+                    <div class="form-group" id="custom-src-group" style="display: none;">
+                        <label for="new-src-dir">Đường dẫn thư mục tự nhập <span class="required">*</span></label>
+                        <input type="text" id="new-src-dir" placeholder="Ví dụ: C:\Users\Admin\AppData\Local\hermes\profiles\editvideo\workspace">
+                        <small class="form-help">Nhập đường dẫn tuyệt đối đến thư mục 9router gốc trên máy (ổ C, D,...).</small>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group col">
+                            <label for="new-port">Cổng mạng (Port) <span class="help-text">(Bỏ trống để tự động tìm)</span></label>
+                            <input type="number" id="new-port" placeholder="Ví dụ: 20129" min="1024" max="65535">
+                        </div>
+                        <div class="form-group col">
+                            <label for="new-script">Script khởi chạy</label>
+                            <input type="text" id="new-script" value="npm" placeholder="npm hoặc file .js (ví dụ server.js)">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="new-args">Tham số script</label>
+                        <input type="text" id="new-args" value="start" placeholder="Ví dụ: start hoặc run dev">
+                    </div>
+                    <div class="form-group">
+                        <label for="new-apikey">API Key / Token 9router <span class="required">*</span></label>
+                        <input type="password" id="new-apikey" placeholder="Nhập mã API key/Token của 9router" required>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary" data-modal="create-modal">Hủy bỏ</button>
+                        <button type="submit" class="btn btn-primary"><i class="fa-solid fa-rocket"></i> Tạo & Khởi chạy</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Xem Logs -->
+    <div class="modal modal-large" id="logs-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fa-solid fa-terminal"></i> Nhật ký hoạt động (Logs): <span id="log-app-name">...</span></h2>
+                <div class="header-actions">
+                    <button class="btn btn-icon" id="btn-refresh-logs" title="Tải lại log"><i class="fa-solid fa-arrows-rotate"></i></button>
+                    <button class="btn-close-modal" data-modal="logs-modal">&times;</button>
+                </div>
+            </div>
+            <div class="modal-body terminal-body">
+                <div class="terminal-content" id="log-content-container">
+                    Đang tải nhật ký...
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Sửa Cấu Hình -->
+    <div class="modal" id="config-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fa-solid fa-gears"></i> Cấu hình file .env: <span id="config-app-name">...</span></h2>
+                <button class="btn-close-modal" data-modal="config-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="config-form">
+                    <div id="config-fields-container">
+                        <!-- Sẽ tự động sinh các trường config khi mở -->
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary" data-modal="config-modal">Hủy bỏ</button>
+                        <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Lưu & Áp dụng</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Confirm Delete -->
+    <div class="modal modal-sm" id="delete-modal">
+        <div class="modal-content">
+            <div class="modal-header danger-header">
+                <h2><i class="fa-solid fa-triangle-exclamation"></i> Xác nhận xóa Proxy</h2>
+                <button class="btn-close-modal" data-modal="delete-modal">&times;</button>
+            </div>
+            <div class="modal-body text-center">
+                <p>Bạn có chắc chắn muốn xóa proxy <strong id="delete-app-name">...</strong>?</p>
+                <p class="warning-text">Hành động này sẽ dừng tiến trình trong PM2 và gỡ cấu hình quản lý.</p>
+                <div class="checkbox-group">
+                    <input type="checkbox" id="delete-files-checkbox">
+                    <label for="delete-files-checkbox">Xóa sạch cả thư mục chứa file proxy trên ổ D</label>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" data-modal="delete-modal">Không, giữ lại</button>
+                    <button type="button" class="btn btn-danger" id="btn-confirm-delete"><i class="fa-solid fa-trash-can"></i> Đồng ý xóa</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Tạo Mới Profile Hermes -->
+    <div class="modal" id="hermes-create-modal">
+        <div class="modal-content">
+            <div class="modal-header" style="background: linear-gradient(to right, var(--secondary), var(--accent-purple));">
+                <h2><i class="fa-solid fa-brain"></i> Thêm Profile Hermes Agent Mới</h2>
+                <button class="btn-close-modal" data-modal="hermes-create-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="hermes-create-form">
+                    <div class="form-group">
+                        <label for="h-new-name">Tên Profile <span class="required">*</span></label>
+                        <input type="text" id="h-new-name" placeholder="Ví dụ: editvideo, zalo, telegram" required>
+                        <small class="form-help">Chỉ bao gồm chữ cái, số, dấu gạch ngang và gạch dưới.</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="h-new-link-select">Liên kết Model Backend <span class="required">*</span></label>
+                        <select id="h-new-link-select" required>
+                            <!-- Sẽ được điền động bằng JS gồm các proxy đang chạy -->
+                        </select>
+                    </div>
+
+                    <div id="h-custom-model-fields" style="display: none;">
+                        <div class="form-group">
+                            <label for="h-new-provider">Provider</label>
+                            <input type="text" id="h-new-provider" value="custom" placeholder="custom, openrouter, ollama...">
+                        </div>
+                        <div class="form-group">
+                            <label for="h-new-base-url">Base URL</label>
+                            <input type="text" id="h-new-base-url" placeholder="Ví dụ: http://localhost:20128/v1">
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group col">
+                            <label for="h-new-model">Tên Model <span class="required">*</span></label>
+                            <input type="text" id="h-new-model" value="editvideo" placeholder="Ví dụ: editvideo, gpt-4o, hermes" required>
+                        </div>
+                        <div class="form-group col">
+                            <label for="h-new-context">Context Length</label>
+                            <input type="number" id="h-new-context" value="70000" min="1024" max="200000">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="h-new-apikey">API Key / Token <span class="required">*</span></label>
+                        <input type="password" id="h-new-apikey" placeholder="Nhập API Key để xác thực với model" required>
+                    </div>
+
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary" data-modal="hermes-create-modal">Hủy bỏ</button>
+                        <button type="submit" class="btn btn-primary" style="background: linear-gradient(135deg, var(--secondary), var(--accent-purple));"><i class="fa-solid fa-rocket"></i> Tạo & Chạy ngầm</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Sửa Cấu Hình Hermes config.yaml -->
+    <div class="modal" id="hermes-config-modal">
+        <div class="modal-content">
+            <div class="modal-header" style="background: linear-gradient(to right, var(--secondary), var(--accent-purple));">
+                <h2><i class="fa-solid fa-gears"></i> Cấu hình Model config.yaml: <span id="hermes-config-app-name">...</span></h2>
+                <button class="btn-close-modal" data-modal="hermes-config-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="hermes-config-form">
+                    <div class="form-group">
+                        <label for="h-cfg-default">Default Model Name</label>
+                        <input type="text" id="h-cfg-default" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="h-cfg-provider">Provider</label>
+                        <input type="text" id="h-cfg-provider" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="h-cfg-base-url">Base URL</label>
+                        <input type="text" id="h-cfg-base-url" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="h-cfg-apikey">API Key</label>
+                        <input type="password" id="h-cfg-apikey" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="h-cfg-context">Context Length</label>
+                        <input type="number" id="h-cfg-context" required>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary" data-modal="hermes-config-modal">Hủy bỏ</button>
+                        <button type="submit" class="btn btn-primary" style="background: linear-gradient(135deg, var(--secondary), var(--accent-purple));"><i class="fa-solid fa-floppy-disk"></i> Lưu & Áp dụng</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Xác nhận xóa Hermes Profile -->
+    <div class="modal modal-sm" id="hermes-delete-modal">
+        <div class="modal-content">
+            <div class="modal-header danger-header">
+                <h2><i class="fa-solid fa-triangle-exclamation"></i> Xác nhận xóa Hermes Profile</h2>
+                <button class="btn-close-modal" data-modal="hermes-delete-modal">&times;</button>
+            </div>
+            <div class="modal-body text-center">
+                <p>Bạn có chắc chắn muốn xóa profile <strong id="hermes-delete-app-name">...</strong>?</p>
+                <p class="warning-text" style="color: var(--accent-red); font-weight: 600; margin-top: 0.5rem;">Hành động này sẽ xóa hoàn toàn thư mục profile của Hermes và gỡ tiến trình PM2 tương ứng.</p>
+                <div class="modal-actions" style="margin-top: 1.5rem;">
+                    <button type="button" class="btn btn-secondary" data-modal="hermes-delete-modal">Hủy bỏ</button>
+                    <button type="button" class="btn btn-danger" id="btn-hermes-confirm-delete"><i class="fa-solid fa-trash-can"></i> Đồng ý xóa</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <!-- App Logic -->
+    <script src="app.js"></script>
+</body>
+</html>

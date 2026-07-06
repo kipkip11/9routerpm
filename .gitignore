@@ -1,0 +1,10 @@
+venv/
+.pm2/
+instances/
+instances.json
+bin/nssm.exe
+__pycache__/
+*.pyc
+.env
+.idea/
+.vscode/
