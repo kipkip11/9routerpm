@@ -1,0 +1,42 @@
+{
+    "global_enabled": true,
+    "check_interval_seconds": 30,
+    "profiles": {
+        "default": {
+            "enabled": false,
+            "bot_type": "telegram",
+            "telegram_token": "",
+            "telegram_chat_id": "",
+            "zalo_url": "http://localhost:3000/send",
+            "zalo_params": "{\"message\": \"{message}\"}",
+            "last_status": "unknown"
+        },
+        "editvideo": {
+            "enabled": false,
+            "bot_type": "telegram",
+            "telegram_token": "",
+            "telegram_chat_id": "",
+            "zalo_url": "http://localhost:3000/send",
+            "zalo_params": "{\"message\": \"{message}\"}",
+            "last_status": "unknown"
+        },
+        "zalo": {
+            "enabled": false,
+            "bot_type": "telegram",
+            "telegram_token": "",
+            "telegram_chat_id": "",
+            "zalo_url": "http://localhost:3000/send",
+            "zalo_params": "{\"message\": \"{message}\"}",
+            "last_status": "unknown"
+        },
+        "zalonguyen": {
+            "enabled": false,
+            "bot_type": "telegram",
+            "telegram_token": "",
+            "telegram_chat_id": "",
+            "zalo_url": "http://localhost:3000/send",
+            "zalo_params": "{\"message\": \"{message}\"}",
+            "last_status": "unknown"
+        }
+    }
+}

@@ -48,6 +48,9 @@
             <button class="nav-btn" id="tab-btn-cleanup">
                 <i class="fa-solid fa-broom"></i> Dọn dẹp xung đột
             </button>
+            <button class="nav-btn" id="tab-btn-alerts">
+                <i class="fa-solid fa-bell"></i> Cảnh báo tự động
+            </button>
         </div>
 
         <!-- Main Content -->
@@ -288,6 +291,73 @@
                     <button class="btn" id="btn-purge-cleanup" style="background: var(--danger); color: white; border: none; padding: 12px 30px; font-weight: 600; border-radius: var(--border-radius); display: none; box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4); cursor: pointer; align-items: center; gap: 8px;">
                         <i class="fa-solid fa-trash-can"></i> XÓA BỎ CÁC MỤC ĐÃ CHỌN
                     </button>
+                </div>
+            </div>
+
+            <!-- Section Cảnh báo tự động -->
+            <style>
+            .switch-toggle input:checked + .slider-toggle {
+                background-color: #10b981 !important;
+            }
+            .slider-toggle:before {
+                position: absolute;
+                content: "";
+                height: 18px;
+                width: 18px;
+                left: 4px;
+                bottom: 4px;
+                background-color: white;
+                transition: .4s;
+                border-radius: 50%;
+            }
+            .switch-toggle input:checked + .slider-toggle:before {
+                transform: translateX(24px);
+            }
+            </style>
+            <div id="section-alerts" class="tab-content" style="display: none; padding: 20px 0;">
+                <div class="content-header" style="margin-bottom: 25px; display: flex; justify-content: space-between; align-items: center;">
+                    <div class="header-title">
+                        <h2 style="font-size: 1.8rem; font-weight: 700; color: var(--text-main); margin-bottom: 5px;">🔔 Cảnh Báo Tự Động Profile Hermes</h2>
+                        <p style="color: var(--text-muted); font-size: 0.95rem;">Theo dõi trạng thái của các Hermes Agent, tự động nhắn tin thông báo qua Telegram hoặc Zalo nếu profile bị Offline hoặc khôi phục Online.</p>
+                    </div>
+                    <button class="btn btn-primary" id="btn-save-alerts" style="background: linear-gradient(135deg, var(--primary), var(--indigo)); border: none; box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3); padding: 10px 22px; font-weight: 600; cursor: pointer; border-radius: var(--border-radius); color: white; display: inline-flex; align-items: center; gap: 8px;">
+                        <i class="fa-solid fa-floppy-disk"></i> Lưu cấu hình cảnh báo
+                    </button>
+                </div>
+
+                <!-- Global settings card -->
+                <div class="card" style="padding: 24px; border-radius: var(--border-radius); background: var(--bg-card); border: 1px solid var(--border); box-shadow: 0 4px 20px rgba(0,0,0,0.15); margin-bottom: 24px;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 20px;">
+                        <div style="display: flex; align-items: center; gap: 15px;">
+                            <div style="font-size: 1.5rem; color: #10b981; background: rgba(16, 185, 129, 0.15); width: 45px; height: 45px; display: flex; align-items: center; justify-content: center; border-radius: 50%;">
+                                <i class="fa-solid fa-shield-halved"></i>
+                            </div>
+                            <div>
+                                <h4 style="margin: 0; color: var(--text-main); font-size: 1.1rem; font-weight: 600;">Giám sát Cảnh báo Toàn cục</h4>
+                                <p style="margin: 3px 0 0 0; color: var(--text-muted); font-size: 0.85rem;">Bật hoặc tắt hệ thống Watchdog tự động giám sát các tiến trình.</p>
+                            </div>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 15px;">
+                            <span style="font-weight: 500; color: var(--text-main); font-size: 0.95rem;">Quét định kỳ:</span>
+                            <select id="alerts-check-interval" style="width: 120px; background: var(--bg-body); border: 1px solid var(--border); color: var(--text-main); border-radius: 6px; padding: 8px 12px; outline: none; cursor: pointer;">
+                                <option value="15">15 giây</option>
+                                <option value="30" selected>30 giây</option>
+                                <option value="60">1 phút</option>
+                                <option value="120">2 phút</option>
+                                <option value="300">5 phút</option>
+                            </select>
+                            
+                            <label class="switch-toggle" style="position: relative; display: inline-block; width: 50px; height: 26px; margin-left: 10px;">
+                                <input type="checkbox" id="alerts-global-enabled" style="opacity: 0; width: 0; height: 0; cursor: pointer;">
+                                <span class="slider-toggle" style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: var(--border); transition: .4s; border-radius: 34px;"></span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Profiles config area -->
+                <div id="alerts-profiles-container" style="display: flex; flex-direction: column; gap: 24px;">
+                    <!-- Dữ liệu profiles sẽ được render bằng JS tại đây -->
                 </div>
             </div>
         </main>

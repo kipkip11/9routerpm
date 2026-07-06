@@ -90,6 +90,13 @@ async def startup_event():
             print(f"[STARTUP] Loi tong quat trong thread startup: {startup_err}")
         print("----- [STARTUP] HOAN TAT KHOI DONG BACKGROUND -----")
         
+        # Kích hoạt Watchdog giám sát Online/Offline của các profile Hermes
+        try:
+            from backend import alerts_manager
+            alerts_manager.start_watchdog()
+        except Exception as e:
+            print(f"[STARTUP] Loi khoi dong Alerts Watchdog: {e}")
+        
     threading.Thread(target=run_startup_tasks, daemon=True).start()
 
 # Đường dẫn tới thư mục frontend
@@ -113,6 +120,44 @@ class PurgeRequest(BaseModel):
     pids: Optional[list] = []
 
 # API endpoints
+@app.get("/api/alerts/config")
+def get_alerts_config():
+    """Lấy cấu hình cảnh báo hiện tại."""
+    from backend import alerts_manager
+    return alerts_manager.load_config()
+
+@app.post("/api/alerts/config")
+def post_alerts_config(config: dict = Body(...)):
+    """Lưu cấu hình cảnh báo mới."""
+    from backend import alerts_manager
+    success = alerts_manager.save_config(config)
+    if not success:
+        raise HTTPException(status_code=500, detail="Không thể ghi cấu hình cảnh báo.")
+    return {"success": True, "message": "Lưu cấu hình cảnh báo thành công."}
+
+@app.post("/api/alerts/test")
+def post_alerts_test(req: dict = Body(...)):
+    """Gửi thử tin nhắn test đến bot của một profile cụ thể."""
+    from backend import alerts_manager
+    profile_name = req.get("profile_name")
+    
+    config = alerts_manager.load_config()
+    profiles = config.get("profiles", {})
+    if profile_name not in profiles:
+        raise HTTPException(status_code=404, detail=f"Không tìm thấy profile '{profile_name}' trong cấu hình.")
+        
+    p_cfg = profiles[profile_name]
+    msg = (
+        f"🔔 <b>TIN NHẮN KIỂM TRA (TEST BOT)</b>\n\n"
+        f"Profile: <code>{profile_name}</code>\n"
+        f"Nội dung: Kết nối thành công! Hệ thống cảnh báo tự động hoạt động tốt.\n"
+        f"Thời gian: {time.strftime('%Y-%m-%d %H:%M:%S')}"
+    )
+    success, msg_err = alerts_manager.send_alert(profile_name, p_cfg, msg)
+    if not success:
+        raise HTTPException(status_code=400, detail=msg_err)
+    return {"success": True, "message": "Gửi tin nhắn kiểm tra thành công."}
+
 @app.get("/api/cleanup/scan")
 def get_cleanup_scan():
     """Quét các tiến trình PM2 cũ và các tác vụ lên lịch Scheduler xung đột."""

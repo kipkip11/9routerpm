@@ -41,9 +41,11 @@ document.addEventListener("DOMContentLoaded", () => {
     const tabBtnProxy = document.getElementById("tab-btn-proxy");
     const tabBtnHermes = document.getElementById("tab-btn-hermes");
     const tabBtnCleanup = document.getElementById("tab-btn-cleanup");
+    const tabBtnAlerts = document.getElementById("tab-btn-alerts");
     const sectionProxy = document.getElementById("section-proxy");
     const sectionHermes = document.getElementById("section-hermes");
     const sectionCleanup = document.getElementById("section-cleanup");
+    const sectionAlerts = document.getElementById("section-alerts");
     const btnOpenProxyModal = document.getElementById("btn-open-create-modal");
     const btnOpenHermesModal = document.getElementById("btn-open-hermes-create-modal");
 
@@ -57,6 +59,12 @@ document.addEventListener("DOMContentLoaded", () => {
     const checkAllTasks = document.getElementById("check-all-tasks");
     const checkAllPids = document.getElementById("check-all-pids");
 
+    // Alerts elements
+    const btnSaveAlerts = document.getElementById("btn-save-alerts");
+    const alertsGlobalEnabled = document.getElementById("alerts-global-enabled");
+    const alertsCheckInterval = document.getElementById("alerts-check-interval");
+    const alertsProfilesContainer = document.getElementById("alerts-profiles-container");
+
     // Initialization
     fetchSystemStatus();
     fetchInstances();
@@ -65,38 +73,42 @@ document.addEventListener("DOMContentLoaded", () => {
     tabBtnProxy.addEventListener("click", () => switchTab("proxy"));
     tabBtnHermes.addEventListener("click", () => switchTab("hermes"));
     tabBtnCleanup.addEventListener("click", () => switchTab("cleanup"));
+    tabBtnAlerts.addEventListener("click", () => switchTab("alerts"));
 
     function switchTab(tab) {
         activeTab = tab;
+        // Reset classes
+        tabBtnProxy.classList.remove("active");
+        tabBtnHermes.classList.remove("active");
+        tabBtnCleanup.classList.remove("active");
+        tabBtnAlerts.classList.remove("active");
+        
+        // Hide sections
+        sectionProxy.style.display = "none";
+        sectionHermes.style.display = "none";
+        sectionCleanup.style.display = "none";
+        sectionAlerts.style.display = "none";
+        
+        btnOpenProxyModal.style.display = "none";
+        btnOpenHermesModal.style.display = "none";
+        
         if (tab === "proxy") {
             tabBtnProxy.classList.add("active");
-            tabBtnHermes.classList.remove("active");
-            tabBtnCleanup.classList.remove("active");
             sectionProxy.style.display = "block";
-            sectionHermes.style.display = "none";
-            sectionCleanup.style.display = "none";
             btnOpenProxyModal.style.display = "block";
-            btnOpenHermesModal.style.display = "none";
             fetchInstances();
         } else if (tab === "hermes") {
-            tabBtnProxy.classList.remove("active");
             tabBtnHermes.classList.add("active");
-            tabBtnCleanup.classList.remove("active");
-            sectionProxy.style.display = "none";
             sectionHermes.style.display = "block";
-            sectionCleanup.style.display = "none";
-            btnOpenProxyModal.style.display = "none";
             btnOpenHermesModal.style.display = "block";
             checkHermesStatus();
         } else if (tab === "cleanup") {
-            tabBtnProxy.classList.remove("active");
-            tabBtnHermes.classList.remove("active");
             tabBtnCleanup.classList.add("active");
-            sectionProxy.style.display = "none";
-            sectionHermes.style.display = "none";
             sectionCleanup.style.display = "block";
-            btnOpenProxyModal.style.display = "none";
-            btnOpenHermesModal.style.display = "none";
+        } else if (tab === "alerts") {
+            tabBtnAlerts.classList.add("active");
+            sectionAlerts.style.display = "block";
+            loadAlertsConfig();
         }
     }
 
@@ -1301,6 +1313,309 @@ document.addEventListener("DOMContentLoaded", () => {
             showToast("Lỗi khi dọn dẹp hệ thống: " + error.message, "error");
             btnPurgeCleanup.disabled = false;
             togglePurgeButton();
+        }
+    });
+
+    // --- Logic Cảnh Báo Tự Động ---
+    let currentAlertsConfig = { global_enabled: true, check_interval_seconds: 30, profiles: {} };
+
+    async function loadAlertsConfig() {
+        alertsProfilesContainer.innerHTML = `<div style="text-align: center; padding: 40px;"><div class="spinner" style="margin: 0 auto 10px;"></div> Đang tải cấu hình cảnh báo...</div>`;
+        try {
+            // 1. Tải danh sách profile thực tế từ backend để đồng bộ
+            let actualProfiles = ["default"];
+            try {
+                const pRes = await fetch(`${API_URL}/api/hermes/profiles`);
+                if (pRes.ok) {
+                    const pData = await pRes.json();
+                    if (Array.isArray(pData)) {
+                        actualProfiles = pData.map(p => p.name || p);
+                    } else if (pData && pData.profiles) {
+                        actualProfiles = pData.profiles;
+                    }
+                }
+            } catch (err) {
+                console.warn("Không thể lấy danh sách profile thực tế, fallback về ['default']:", err);
+            }
+            
+            // 2. Tải cấu hình alerts hiện tại
+            const response = await fetch(`${API_URL}/api/alerts/config`);
+            currentAlertsConfig = await response.json();
+            
+            // Đồng bộ hóa các profile mới nếu config chưa có
+            if (!currentAlertsConfig.profiles) {
+                currentAlertsConfig.profiles = {};
+            }
+            
+            // Đảm bảo tất cả profile thực tế đều có mặt trong config
+            actualProfiles.forEach(p => {
+                if (!currentAlertsConfig.profiles[p]) {
+                    currentAlertsConfig.profiles[p] = {
+                        enabled: false,
+                        bot_type: "telegram",
+                        telegram_token: "",
+                        telegram_chat_id: "",
+                        zalo_url: "http://localhost:3000/send",
+                        zalo_params: '{"message": "{message}"}',
+                        last_status: "unknown"
+                    };
+                }
+            });
+            
+            // Cập nhật trạng thái switch toàn cục và interval
+            alertsGlobalEnabled.checked = currentAlertsConfig.global_enabled;
+            alertsCheckInterval.value = currentAlertsConfig.check_interval_seconds;
+            
+            // Render danh sách profiles cấu hình
+            renderAlertsProfiles();
+        } catch (error) {
+            console.error("Lỗi khi tải cấu hình alerts:", error);
+            showToast("Lỗi tải cấu hình cảnh báo: " + error.message, "error");
+            alertsProfilesContainer.innerHTML = `<div style="text-align: center; color: var(--danger); padding: 20px;">Lỗi tải dữ liệu cấu hình cảnh báo.</div>`;
+        }
+    }
+
+    function renderAlertsProfiles() {
+        const profiles = currentAlertsConfig.profiles;
+        const keys = Object.keys(profiles);
+        
+        if (keys.length === 0) {
+            alertsProfilesContainer.innerHTML = `<div class="card" style="padding: 30px; text-align: center; color: var(--text-muted);">Không phát hiện profile Hermes nào để cấu hình. Hãy tạo một profile trước.</div>`;
+            return;
+        }
+        
+        alertsProfilesContainer.innerHTML = keys.map(pName => {
+            const cfg = profiles[pName];
+            const isTelegram = cfg.bot_type === "telegram";
+            const isZalo = cfg.bot_type === "zalo";
+            const isEnabled = cfg.enabled;
+            
+            return `
+            <div class="card alerts-profile-card" data-profile="${escapeHtml(pName)}" style="padding: 24px; border-radius: var(--border-radius); background: var(--bg-card); border: 1px solid var(--border); box-shadow: 0 4px 20px rgba(0,0,0,0.15); transition: border-color 0.3s; margin-bottom: 10px;">
+                <!-- Header Profile Card -->
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 15px; margin-bottom: 20px;">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <h3 style="margin: 0; font-size: 1.25rem; font-weight: 700; color: var(--text-main); display: flex; align-items: center; gap: 8px;">
+                            <i class="fa-solid fa-robot text-primary"></i> Profile: ${escapeHtml(pName)}
+                        </h3>
+                        <span class="status-badge status-indicator-badge-${escapeHtml(pName)}" style="background: rgba(156,163,175,0.15); color: var(--text-muted); padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: 500;">Đang kiểm tra...</span>
+                    </div>
+                    
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span style="font-size: 0.9rem; color: var(--text-muted);">Kích hoạt cảnh báo:</span>
+                        <label class="switch-toggle" style="position: relative; display: inline-block; width: 50px; height: 26px;">
+                            <input type="checkbox" class="profile-alert-toggle" data-profile="${escapeHtml(pName)}" style="opacity: 0; width: 0; height: 0; cursor: pointer;" ${isEnabled ? 'checked' : ''}>
+                            <span class="slider-toggle" style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: var(--border); transition: .4s; border-radius: 34px;"></span>
+                        </label>
+                    </div>
+                </div>
+                
+                <!-- Config Form -->
+                <div class="profile-config-form-body-${escapeHtml(pName)}" style="transition: opacity 0.3s; ${isEnabled ? '' : 'opacity: 0.5; pointer-events: none;'}">
+                    <!-- Chọn loại Bot -->
+                    <div class="form-group" style="margin-bottom: 15px;">
+                        <label style="display: block; font-weight: 600; color: var(--text-main); margin-bottom: 8px; font-size: 0.95rem;">Loại Bot Cảnh Báo:</label>
+                        <div style="display: flex; gap: 20px;">
+                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: var(--text-main); font-weight: 500;">
+                                <input type="radio" name="bot_type_${escapeHtml(pName)}" value="telegram" class="radio-bot-type" data-profile="${escapeHtml(pName)}" ${isTelegram ? 'checked' : ''} style="transform: scale(1.1);"> 
+                                <i class="fa-brands fa-telegram" style="color: #3b82f6; font-size: 1.1rem;"></i> Telegram Bot
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: var(--text-main); font-weight: 500;">
+                                <input type="radio" name="bot_type_${escapeHtml(pName)}" value="zalo" class="radio-bot-type" data-profile="${escapeHtml(pName)}" ${isZalo ? 'checked' : ''} style="transform: scale(1.1);"> 
+                                <i class="fa-solid fa-message" style="color: #0068ff; font-size: 1rem;"></i> Zalo Webhook
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <!-- Inputs Telegram -->
+                    <div class="telegram-fields-${escapeHtml(pName)}" style="display: ${isTelegram ? 'grid' : 'none'}; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                        <div class="form-group">
+                            <label style="display: block; font-size: 0.9rem; color: var(--text-muted); margin-bottom: 5px;">Telegram Bot Token:</label>
+                            <input type="password" class="form-control tg-token-input" data-profile="${escapeHtml(pName)}" value="${escapeHtml(cfg.telegram_token || '')}" placeholder="Nhập Token của Bot Telegram" style="width: 100%; padding: 8px 12px; background: var(--bg-body); border: 1px solid var(--border); color: var(--text-main); border-radius: 6px;">
+                        </div>
+                        <div class="form-group">
+                            <label style="display: block; font-size: 0.9rem; color: var(--text-muted); margin-bottom: 5px;">Chat ID Telegram:</label>
+                            <input type="text" class="form-control tg-chat-input" data-profile="${escapeHtml(pName)}" value="${escapeHtml(cfg.telegram_chat_id || '')}" placeholder="Nhập ID Chat hoặc ID Group" style="width: 100%; padding: 8px 12px; background: var(--bg-body); border: 1px solid var(--border); color: var(--text-main); border-radius: 6px;">
+                        </div>
+                    </div>
+                    
+                    <!-- Inputs Zalo -->
+                    <div class="zalo-fields-${escapeHtml(pName)}" style="display: ${isZalo ? 'grid' : 'none'}; grid-template-columns: 1.2fr 0.8fr; gap: 15px; margin-bottom: 15px;">
+                        <div class="form-group">
+                            <label style="display: block; font-size: 0.9rem; color: var(--text-muted); margin-bottom: 5px;">Zalo Webhook URL:</label>
+                            <input type="text" class="form-control zalo-url-input" data-profile="${escapeHtml(pName)}" value="${escapeHtml(cfg.zalo_url || 'http://localhost:3000/send')}" placeholder="Ví dụ: http://localhost:3000/send" style="width: 100%; padding: 8px 12px; background: var(--bg-body); border: 1px solid var(--border); color: var(--text-main); border-radius: 6px;">
+                        </div>
+                        <div class="form-group">
+                            <label style="display: block; font-size: 0.9rem; color: var(--text-muted); margin-bottom: 5px;">JSON Payload Template:</label>
+                            <input type="text" class="form-control zalo-params-input" data-profile="${escapeHtml(pName)}" value="${escapeHtml(cfg.zalo_params || '{"message": "{message}"}')}" placeholder='{"message": "{message}"}' style="width: 100%; padding: 8px 12px; background: var(--bg-body); border: 1px solid var(--border); color: var(--text-main); border-radius: 6px; font-family: monospace;">
+                        </div>
+                    </div>
+                    
+                    <!-- Test Button -->
+                    <div style="display: flex; justify-content: flex-start; margin-top: 10px;">
+                        <button class="btn btn-test-bot" data-profile="${escapeHtml(pName)}" style="background: rgba(59, 130, 246, 0.1); color: var(--primary); border: 1px solid rgba(59,130,246,0.3); padding: 8px 15px; border-radius: var(--border-radius); font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: 0.85rem; transition: all 0.2s;">
+                            <i class="fa-solid fa-paper-plane"></i> Gửi thử tin nhắn (Test Bot)
+                        </button>
+                    </div>
+                </div>
+            </div>
+            `;
+        }).join("");
+        
+        // Setup events
+        setupAlertsEvents();
+        fetchAlertsProfilesStatus();
+    }
+
+    function setupAlertsEvents() {
+        // Toggle kích hoạt
+        document.querySelectorAll(".profile-alert-toggle").forEach(toggle => {
+            toggle.addEventListener("change", (e) => {
+                const pName = e.target.getAttribute("data-profile");
+                const formBody = document.querySelector(`.profile-config-form-body-${pName}`);
+                
+                if (e.target.checked) {
+                    formBody.style.opacity = "1";
+                    formBody.style.pointerEvents = "auto";
+                } else {
+                    formBody.style.opacity = "0.5";
+                    formBody.style.pointerEvents = "none";
+                }
+                currentAlertsConfig.profiles[pName].enabled = e.target.checked;
+            });
+        });
+
+        // Radio bot type
+        document.querySelectorAll(".radio-bot-type").forEach(radio => {
+            radio.addEventListener("change", (e) => {
+                const pName = e.target.getAttribute("data-profile");
+                const botType = e.target.value;
+                
+                const tgFields = document.querySelector(`.telegram-fields-${pName}`);
+                const zaloFields = document.querySelector(`.zalo-fields-${pName}`);
+                
+                if (botType === "telegram") {
+                    tgFields.style.display = "grid";
+                    zaloFields.style.display = "none";
+                } else {
+                    tgFields.style.display = "none";
+                    zaloFields.style.display = "grid";
+                }
+                currentAlertsConfig.profiles[pName].bot_type = botType;
+            });
+        });
+
+        // Test Bot
+        document.querySelectorAll(".btn-test-bot").forEach(btn => {
+            btn.addEventListener("click", async (e) => {
+                const pName = btn.getAttribute("data-profile");
+                const card = btn.closest(".alerts-profile-card");
+                const p_cfg = currentAlertsConfig.profiles[pName];
+                
+                p_cfg.telegram_token = card.querySelector(".tg-token-input").value.trim();
+                p_cfg.telegram_chat_id = card.querySelector(".tg-chat-input").value.trim();
+                p_cfg.zalo_url = card.querySelector(".zalo-url-input").value.trim();
+                p_cfg.zalo_params = card.querySelector(".zalo-params-input").value.trim();
+                
+                btn.disabled = true;
+                btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Đang gửi...`;
+                
+                try {
+                    await fetch(`${API_URL}/api/alerts/config`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(currentAlertsConfig)
+                    });
+                    
+                    const res = await fetch(`${API_URL}/api/alerts/test`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ profile_name: pName })
+                    });
+                    const data = await res.json();
+                    
+                    if (res.ok && data.success) {
+                        showToast(`Gửi tin nhắn kiểm tra cho '${pName}' thành công!`, "success");
+                    } else {
+                        showToast(`Lỗi test bot: ${data.detail || "Không rõ nguyên nhân"}`, "error");
+                    }
+                } catch (error) {
+                    console.error("Lỗi test bot:", error);
+                    showToast("Lỗi test bot: " + error.message, "error");
+                } finally {
+                    btn.disabled = false;
+                    btn.innerHTML = `<i class="fa-solid fa-paper-plane"></i> Gửi thử tin nhắn (Test Bot)`;
+                }
+            });
+        });
+    }
+
+    async function fetchAlertsProfilesStatus() {
+        try {
+            const pRes = await fetch(`${API_URL}/api/hermes/profiles`);
+            const pData = await pRes.json();
+            const actualProfiles = pData.profiles_status || {};
+            
+            Object.keys(currentAlertsConfig.profiles).forEach(pName => {
+                const statusBadge = document.querySelector(`.status-indicator-badge-${pName}`);
+                if (statusBadge) {
+                    const status = actualProfiles[pName] || "offline";
+                    if (status === "online") {
+                        statusBadge.innerText = "ONLINE";
+                        statusBadge.style.background = "rgba(16, 185, 129, 0.15)";
+                        statusBadge.style.color = "#10b981";
+                    } else {
+                        statusBadge.innerText = "OFFLINE";
+                        statusBadge.style.background = "rgba(239, 68, 68, 0.15)";
+                        statusBadge.style.color = "#ef4444";
+                    }
+                }
+            });
+        } catch (e) {
+            console.warn("Lỗi đồng bộ trạng thái:", e);
+        }
+    }
+
+    btnSaveAlerts.addEventListener("click", async () => {
+        btnSaveAlerts.disabled = true;
+        btnSaveAlerts.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Đang lưu...`;
+        
+        currentAlertsConfig.global_enabled = alertsGlobalEnabled.checked;
+        currentAlertsConfig.check_interval_seconds = parseInt(alertsCheckInterval.value);
+        
+        const cards = document.querySelectorAll(".alerts-profile-card");
+        cards.forEach(card => {
+            const pName = card.getAttribute("data-profile");
+            const p_cfg = currentAlertsConfig.profiles[pName];
+            
+            p_cfg.telegram_token = card.querySelector(".tg-token-input").value.trim();
+            p_cfg.telegram_chat_id = card.querySelector(".tg-chat-input").value.trim();
+            p_cfg.zalo_url = card.querySelector(".zalo-url-input").value.trim();
+            p_cfg.zalo_params = card.querySelector(".zalo-params-input").value.trim();
+        });
+        
+        try {
+            const response = await fetch(`${API_URL}/api/alerts/config`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(currentAlertsConfig)
+            });
+            const data = await response.json();
+            
+            if (response.ok && data.success) {
+                showToast("Đã lưu cấu hình cảnh báo thành công!", "success");
+                loadAlertsConfig();
+            } else {
+                showToast("Lỗi lưu cấu hình: " + (data.detail || "Không rõ nguyên nhân"), "error");
+            }
+        } catch (error) {
+            console.error("Lỗi lưu cấu hình alerts:", error);
+            showToast("Lỗi lưu cấu hình: " + error.message, "error");
+        } finally {
+            btnSaveAlerts.disabled = false;
+            btnSaveAlerts.innerHTML = `<i class="fa-solid fa-floppy-disk"></i> Lưu cấu hình cảnh báo`;
         }
     });
 
