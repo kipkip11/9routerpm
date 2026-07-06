@@ -11,25 +11,22 @@ def scan_system():
         "pm2_processes": []
     }
     
-    # 1. Quét Scheduled Tasks bằng schtasks
+    # 1. Quét Scheduled Tasks bằng schtasks (bỏ /v để chạy siêu nhanh, tránh treo)
     try:
-        # Chạy schtasks qua cmd.exe để tránh lỗi MSYS path translation
         res = subprocess.run(
-            ["cmd.exe", "/c", "schtasks /query /fo CSV /v"],
+            ["cmd.exe", "/c", "schtasks /query /fo CSV"],
             capture_output=True,
             text=True,
             encoding='utf-8',
-            errors='ignore'
+            errors='ignore',
+            timeout=8
         )
         if res.returncode == 0:
             lines = res.stdout.strip().split("\n")
             if lines:
-                # Đọc CSV từ đầu ra của schtasks
                 reader = csv.reader(lines)
                 header = next(reader)
                 
-                # Xác định index của TaskName, TaskToRun, Status
-                # Tiêu đề trên các phiên bản Windows có thể khác nhau (tiếng Anh/Việt)
                 name_idx = 0
                 run_idx = -1
                 status_idx = -1
@@ -48,14 +45,12 @@ def scan_system():
                         continue
                     task_name = row[name_idx]
                     
-                    # Bỏ qua các task hệ thống của Microsoft
                     if task_name.startswith("\\Microsoft\\") or task_name.startswith("Microsoft\\"):
                         continue
                         
                     task_run = row[run_idx] if run_idx != -1 and run_idx < len(row) else ""
                     task_status = row[status_idx] if status_idx != -1 and status_idx < len(row) else "N/A"
                     
-                    # Lọc các task chứa hermes, 9router, proxy, agent
                     name_check = task_name.lower()
                     run_check = task_run.lower()
                     
@@ -73,6 +68,8 @@ def scan_system():
                             "status": task_status,
                             "command": task_run
                         })
+    except subprocess.TimeoutExpired:
+        print("[CLEANUP] Quét Scheduled Tasks bị timeout (quá 8 giây).")
     except Exception as e:
         print(f"[CLEANUP] Lỗi quét Scheduled Tasks: {e}")
         
@@ -83,7 +80,8 @@ def scan_system():
             capture_output=True,
             text=True,
             encoding='utf-8',
-            errors='ignore'
+            errors='ignore',
+            timeout=8
         )
         if res.returncode == 0:
             # Parse output wmic format list
@@ -118,6 +116,8 @@ def scan_system():
                             "command_line": cmdline,
                             "is_current": is_current
                         })
+    except subprocess.TimeoutExpired:
+        print("[CLEANUP] Quét tiến trình PM2 (node.exe) bị timeout (quá 8 giây).")
     except Exception as e:
         print(f"[CLEANUP] Lỗi quét tiến trình PM2: {e}")
         
