@@ -65,7 +65,7 @@ def ensure_9router_installed(src_dir):
         try:
             # Chạy lệnh npm install -g 9router
             import subprocess
-            res = subprocess.run("npm install -g 9router", shell=True, capture_output=True, text=True, timeout=120)
+            res = subprocess.run("npm install -g 9router", shell=True, capture_output=True, text=True, timeout=120, encoding='utf-8', errors='ignore')
             if res.returncode == 0:
                 print("Cài đặt 9router thành công!")
                 if os.path.exists(src_dir):

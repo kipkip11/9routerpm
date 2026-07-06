@@ -60,7 +60,7 @@ async def startup_event():
             # Cài đặt PM2 toàn cục nếu chưa có
             try:
                 print("[STARTUP] Kiem tra và đảm bảo PM2 duoc cai dat...")
-                subprocess.run("npm install -g pm2", shell=True, capture_output=True, env=env, timeout=30)
+                subprocess.run("npm install -g pm2", shell=True, capture_output=True, env=env, timeout=30, encoding='utf-8', errors='ignore')
             except subprocess.TimeoutExpired:
                 print("[STARTUP] npm install -g pm2 bi qua han (timeout).")
             except Exception as e:
@@ -69,7 +69,7 @@ async def startup_event():
             # Phục hồi các tiến trình PM2 cũ đã lưu
             try:
                 print("[STARTUP] Dang goi pm2 resurrect de khoi phuc cac tien trinh cu...")
-                res = subprocess.run("pm2 resurrect", shell=True, capture_output=True, text=True, env=env, timeout=20)
+                res = subprocess.run("pm2 resurrect", shell=True, capture_output=True, text=True, env=env, timeout=20, encoding='utf-8', errors='ignore')
                 print(f"[STARTUP] PM2 resurrect stdout: {res.stdout.strip()}")
                 if res.stderr:
                     print(f"[STARTUP] PM2 resurrect stderr: {res.stderr.strip()}")

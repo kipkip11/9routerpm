@@ -244,7 +244,7 @@ def start_profile_gateway(name):
     cmd = f'pm2 start "{VENV_HERMES_EXE}" --name "{pm2_name}" --cwd "{HERMES_DIR}" -- -p {name} gateway run --replace'
     
     # Chạy lệnh
-    res = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+    res = subprocess.run(cmd, shell=True, capture_output=True, text=True, encoding='utf-8', errors='ignore')
     if res.returncode != 0:
         raise Exception(f"Lỗi khởi chạy PM2 cho profile '{name}': {res.stderr or res.stdout}")
     
@@ -297,28 +297,28 @@ def run_installation_worker():
             repo_url = "https://github.com/NousResearch/hermes-agent.git"
             
             # Sử dụng subprocess chạy git clone
-            res = subprocess.run(f'git clone {repo_url} "{HERMES_AGENT_DIR}"', shell=True, capture_output=True, text=True)
+            res = subprocess.run(f'git clone {repo_url} "{HERMES_AGENT_DIR}"', shell=True, capture_output=True, text=True, encoding='utf-8', errors='ignore')
             if res.returncode != 0:
                 raise Exception(f"Lỗi git clone: {res.stderr or res.stdout}")
         else:
             set_install_state("running", 30, "Thư mục mã nguồn hermes-agent đã tồn tại, đang cập nhật mã nguồn mới nhất...")
-            subprocess.run('git pull', shell=True, cwd=HERMES_AGENT_DIR, capture_output=True)
+            subprocess.run('git pull', shell=True, cwd=HERMES_AGENT_DIR, capture_output=True, encoding='utf-8', errors='ignore')
             
         # 2. Tạo Virtual Environment
         venv_dir = os.path.join(HERMES_AGENT_DIR, "venv")
         if not os.path.exists(VENV_PYTHON):
             set_install_state("running", 45, "Đang tạo môi trường ảo Python (virtualenv venv)...")
-            res = subprocess.run(f'python -m venv "{venv_dir}"', shell=True, capture_output=True, text=True)
+            res = subprocess.run(f'python -m venv "{venv_dir}"', shell=True, capture_output=True, text=True, encoding='utf-8', errors='ignore')
             if res.returncode != 0:
                 raise Exception(f"Lỗi tạo venv: {res.stderr or res.stdout}")
                 
         # 3. Pip install dependencies
         set_install_state("running", 65, "Đang cài đặt các dependencies thông qua pip install -e . (Quá trình này có thể mất 1-2 phút)...")
         # Upgrade pip trước
-        subprocess.run(f'"{VENV_PYTHON}" -m pip install --upgrade pip', shell=True, capture_output=True)
+        subprocess.run(f'"{VENV_PYTHON}" -m pip install --upgrade pip', shell=True, capture_output=True, encoding='utf-8', errors='ignore')
         
         # Chạy pip install
-        res = subprocess.run(f'"{VENV_PYTHON}" -m pip install -e .', shell=True, cwd=HERMES_AGENT_DIR, capture_output=True, text=True)
+        res = subprocess.run(f'"{VENV_PYTHON}" -m pip install -e .', shell=True, cwd=HERMES_AGENT_DIR, capture_output=True, text=True, encoding='utf-8', errors='ignore')
         if res.returncode != 0:
             raise Exception(f"Lỗi pip install: {res.stderr or res.stdout}")
             
