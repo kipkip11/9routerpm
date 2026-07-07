@@ -10,6 +10,21 @@ if sys.platform == 'win32':
     except Exception as e:
         pass
 
+# Ẩn hoàn toàn cửa sổ CMD khi gọi subprocess trên Windows (tránh nhấp nháy màn hình)
+if sys.platform == 'win32':
+    import subprocess
+    _original_popen = subprocess.Popen
+    class HiddenPopen(_original_popen):
+        def __init__(self, *args, **kwargs):
+            startupinfo = kwargs.get('startupinfo')
+            if startupinfo is None:
+                startupinfo = subprocess.STARTUPINFO()
+                startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                startupinfo.wShowWindow = subprocess.SW_HIDE
+                kwargs['startupinfo'] = startupinfo
+            super().__init__(*args, **kwargs)
+    subprocess.Popen = HiddenPopen
+
 from fastapi import FastAPI, HTTPException, Body, BackgroundTasks
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
