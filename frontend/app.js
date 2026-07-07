@@ -147,7 +147,8 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     async function fetchInstances(showLoading = true) {
-        if (showLoading && proxyListContainer) {
+        const hasData = proxyListContainer && (proxyListContainer.querySelector(".proxy-card") !== null);
+        if (showLoading && proxyListContainer && !hasData) {
             proxyListContainer.innerHTML = `
                 <div class="loading-state">
                     <div class="spinner"></div>
@@ -710,7 +711,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     async function fetchHermesProfiles(showLoading = true) {
         const container = document.getElementById("hermes-list-container");
-        if (showLoading && container) {
+        const hasData = container && (container.querySelector(".profile-card") !== null || container.querySelector(".card") !== null);
+        if (showLoading && container && !hasData) {
             container.innerHTML = `
                 <div class="loading-state">
                     <div class="spinner"></div>
@@ -1320,7 +1322,10 @@ document.addEventListener("DOMContentLoaded", () => {
     let currentAlertsConfig = { global_enabled: true, check_interval_seconds: 30, profiles: {} };
 
     async function loadAlertsConfig() {
-        alertsProfilesContainer.innerHTML = `<div style="text-align: center; padding: 40px;"><div class="spinner" style="margin: 0 auto 10px;"></div> Đang tải cấu hình cảnh báo...</div>`;
+        const hasData = alertsProfilesContainer && alertsProfilesContainer.querySelector(".alerts-profile-card") !== null;
+        if (!hasData) {
+            alertsProfilesContainer.innerHTML = `<div style="text-align: center; padding: 40px;"><div class="spinner" style="margin: 0 auto 10px;"></div> Đang tải cấu hình cảnh báo...</div>`;
+        }
         try {
             // 1. Tải danh sách profile thực tế từ backend để đồng bộ
             let actualProfiles = ["default"];

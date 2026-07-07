@@ -2,6 +2,13 @@ import subprocess
 import json
 import os
 import shutil
+import time
+
+# Cache toàn cục cho danh sách PM2
+_pm2_list_cache = {
+    "data": None,
+    "timestamp": 0
+}
 
 # Thiết lập PM2_HOME nội bộ dự án
 PARENT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -54,7 +61,12 @@ def is_pm2_installed():
     return False
 
 def get_pm2_list():
-    """Lấy danh sách các ứng dụng đang được PM2 quản lý."""
+    """Lấy danh sách các ứng dụng đang được PM2 quản lý (có cache 3 giây)."""
+    global _pm2_list_cache
+    now = time.time()
+    if _pm2_list_cache["data"] is not None and (now - _pm2_list_cache["timestamp"] < 3.0):
+        return _pm2_list_cache["data"]
+
     stdout, _, code = run_cmd("pm2 jlist")
     if code != 0 or not stdout.strip():
         return []
@@ -98,13 +110,18 @@ def get_pm2_list():
                 "cwd": pm2_env.get("pm_cwd"),
                 "env": env_vars
             })
+            
+        _pm2_list_cache["data"] = apps
+        _pm2_list_cache["timestamp"] = now
         return apps
     except Exception as e:
         print(f"Error parsing pm2 jlist: {e}")
         return []
 
 def save_pm2_state():
-    """Lưu trạng thái hiện tại của PM2 để khôi phục khi khởi động lại."""
+    """Lưu trạng thái hiện tại của PM2 để khôi phục khi khởi động lại (đồng thời xóa cache PM2 list)."""
+    global _pm2_list_cache
+    _pm2_list_cache["data"] = None
     run_cmd("pm2 save")
 
 def get_port_by_app_name(name, cwd=None):
