@@ -2,7 +2,8 @@ import os
 import json
 import time
 import threading
-import requests
+import urllib.request
+import urllib.error
 from backend import pm2_manager
 
 CONFIG_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "alerts_config.json"))
@@ -71,6 +72,23 @@ def save_config(config):
         print(f"[ALERTS] Lỗi ghi file cấu hình: {e}")
         return False
 
+def send_http_post(url, json_data, timeout=10):
+    """Hàm helper gửi POST request dạng JSON sử dụng thư viện urllib chuẩn (Zero Dependency)."""
+    data = json.dumps(json_data).encode("utf-8")
+    req = urllib.request.Request(
+        url,
+        data=data,
+        headers={
+            "Content-Type": "application/json",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+        },
+        method="POST"
+    )
+    with urllib.request.urlopen(req, timeout=timeout) as response:
+        status = response.status
+        body = response.read().decode("utf-8", errors="ignore")
+        return status, body
+
 def send_telegram_alert(token, chat_id, message):
     """Gửi tin nhắn cảnh báo qua Telegram Bot."""
     if not token or not chat_id:
@@ -82,10 +100,13 @@ def send_telegram_alert(token, chat_id, message):
             "text": message,
             "parse_mode": "HTML"
         }
-        res = requests.post(url, json=payload, timeout=10)
-        if res.status_code == 200:
+        status, body = send_http_post(url, payload, timeout=10)
+        if status == 200:
             return True, "Gửi tin nhắn Telegram thành công."
-        return False, f"Lỗi Telegram API: {res.text}"
+        return False, f"Lỗi Telegram API: HTTP {status} - {body}"
+    except urllib.error.HTTPError as e:
+        err_body = e.read().decode("utf-8", errors="ignore")
+        return False, f"Lỗi Telegram API: HTTP {e.code} - {err_body}"
     except Exception as e:
         return False, f"Lỗi kết nối Telegram: {str(e)}"
 
@@ -102,10 +123,13 @@ def send_zalo_alert(url, params_template, message):
             # Nếu params không phải JSON hợp lệ, gửi thô làm text
             payload = {"message": message}
             
-        res = requests.post(url, json=payload, timeout=10)
-        if res.status_code in [200, 201]:
+        status, body = send_http_post(url, payload, timeout=10)
+        if status in [200, 201]:
             return True, "Gửi tin nhắn Zalo thành công."
-        return False, f"Lỗi Zalo Webhook API: {res.text}"
+        return False, f"Lỗi Zalo Webhook API: HTTP {status} - {body}"
+    except urllib.error.HTTPError as e:
+        err_body = e.read().decode("utf-8", errors="ignore")
+        return False, f"Lỗi Zalo Webhook API: HTTP {e.code} - {err_body}"
     except Exception as e:
         return False, f"Lỗi kết nối Zalo Webhook: {str(e)}"
 
