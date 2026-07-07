@@ -27,7 +27,12 @@ if not exist "venv\Scripts\python.exe" (
 
 if not exist "venv\Scripts\uvicorn.exe" (
     echo -- Dang cai dat cac thu vien Python...
-    venv\Scripts\pip install fastapi uvicorn
+    venv\Scripts\pip install fastapi uvicorn requests
+) else (
+    venv\Scripts\python -c "import requests" >nul 2>nul
+    if %errorlevel% neq 0 (
+        venv\Scripts\pip install requests
+    )
 )
 
 :: 2. Kiem tra Node.js

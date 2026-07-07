@@ -45,14 +45,22 @@ if not exist "venv\Scripts\python.exe" (
 :: Kiem tra va tu dong cai dat dependency Python
 if not exist "venv\Scripts\uvicorn.exe" (
     echo.
-    echo -- Dang tu dong cai dat cac thu vien Python FastAPI, Uvicorn...
-    venv\Scripts\pip install fastapi uvicorn
+    echo -- Dang tu dong cai dat cac thu vien Python FastAPI, Uvicorn, Requests...
+    venv\Scripts\pip install fastapi uvicorn requests
     if %errorlevel% neq 0 (
         echo [ERROR] Cai dat thu vien Python that bai! Vui long kiem tra ket noi mang.
         pause
         exit /b
     )
     echo -- Cai dat thu vien thanh cong!
+) else (
+    :: Bo sung thu vien neu thieu
+    venv\Scripts\python -c "import requests" >nul 2>nul
+    if %errorlevel% neq 0 (
+        echo.
+        echo -- Dang bo sung thu vien requests con thieu...
+        venv\Scripts\pip install requests
+    )
 )
 
 :: 2. Kiem tra Node.js (Bat buoc cho 9router proxy)
