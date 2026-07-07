@@ -48,7 +48,13 @@ if not exist "%~dp0venv\Scripts\python.exe" (
 )
 if not exist "%~dp0venv\Scripts\uvicorn.exe" (
     echo -- Dang cai dat cac thu vien phu tro cho API Server...
-    "%~dp0venv\Scripts\pip" install fastapi uvicorn
+    "%~dp0venv\Scripts\pip" install fastapi uvicorn requests
+) else (
+    "%~dp0venv\Scripts\python.exe" -c "import requests" >nul 2>nul
+    if !errorlevel! neq 0 (
+        echo -- Dang bo sung thu vien requests con thieu...
+        "%~dp0venv\Scripts\pip" install requests
+    )
 )
 
 :: 3. Tai ve NSSM neu chua co
