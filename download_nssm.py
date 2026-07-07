@@ -5,7 +5,8 @@ import os
 
 def download_nssm():
     nssm_url = "https://nssm.cc/release/nssm-2.24.zip"
-    bin_dir = "D:/9routerpm/bin"
+    # Sử dụng đường dẫn tương đối để chạy được trên mọi máy
+    bin_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "bin"))
     os.makedirs(bin_dir, exist_ok=True)
     nssm_exe_path = os.path.join(bin_dir, "nssm.exe")
     if os.path.exists(nssm_exe_path):

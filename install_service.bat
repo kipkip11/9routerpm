@@ -13,18 +13,32 @@ NET FILE 1>NUL 2>NUL
 if '%errorlevel%' == '0' ( goto gotPrivileges ) else ( goto getPrivileges )
 
 :getPrivileges
-if '%1'=='ELEV' (shift & goto gotPrivileges)
+if '%1'=='ELEV' (
+    set "ORIG_USERPROFILE=%~2"
+    set "ORIG_APPDATA=%~3"
+    set "ORIG_LOCALAPPDATA=%~4"
+    shift
+    shift
+    shift
+    shift
+    goto gotPrivileges
+)
 echo -- Dang yeu cau quyen Administrator de dang ky Dich vu Windows...
 setlocal DisableDelayedExpansion
 set "vbs=%temp%\getadmin.vbs"
 echo Set UAC = CreateObject("Shell.Application") > "%vbs%"
-echo UAC.ShellExecute "%~s0", "ELEV", "", "runas", 1 >> "%vbs%"
+echo UAC.ShellExecute "%~s0", "ELEV ""%USERPROFILE%"" ""%APPDATA%"" ""%LOCALAPPDATA%""", "", "runas", 1 >> "%vbs%"
 "%vbs%"
 exit /B
 
 :gotPrivileges
 setlocal enabledelayedexpansion
 cd /d "%~dp0"
+
+:: Fallback neu khong qua UAC nang quyen (chay luon bang quyen Admin tu dau)
+if "!ORIG_USERPROFILE!"=="" set "ORIG_USERPROFILE=%USERPROFILE%"
+if "!ORIG_APPDATA!"=="" set "ORIG_APPDATA=%APPDATA%"
+if "!ORIG_LOCALAPPDATA!"=="" set "ORIG_LOCALAPPDATA=%LOCALAPPDATA%"
 
 :: 2. Kiem tra va tao Virtual Environment Python neu chua co
 echo -- Kiem tra moi truong ao Python venv...
@@ -73,7 +87,7 @@ if %errorlevel% neq 0 (
 "%~dp0bin\nssm.exe" set 9routerPMService Start SERVICE_AUTO_START
 
 :: Cau hinh them bien moi truong PM2_HOME, APPDATA_USER, USERPROFILE_USER va LOCALAPPDATA_USER cho Service chay dong bo
-"%~dp0bin\nssm.exe" set 9routerPMService AppEnvironmentExtra PM2_HOME="%~dp0.pm2" APPDATA_USER="%APPDATA%" USERPROFILE_USER="%USERPROFILE%" LOCALAPPDATA_USER="%LOCALAPPDATA%"
+"%~dp0bin\nssm.exe" set 9routerPMService AppEnvironmentExtra PM2_HOME="%~dp0.pm2" APPDATA_USER="!ORIG_APPDATA!" USERPROFILE_USER="!ORIG_USERPROFILE!" LOCALAPPDATA_USER="!ORIG_LOCALAPPDATA!"
 
 :: Cau hinh tu dong khoi dong lai khi co loi xay ra (auto recovery)
 "%~dp0bin\nssm.exe" set 9routerPMService AppExit Default Restart
