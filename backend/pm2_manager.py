@@ -16,18 +16,37 @@ os.environ["PM2_HOME"] = os.path.abspath(os.path.join(PARENT_DIR, ".pm2"))
 
 def run_cmd(args, env=None):
     """Chạy lệnh hệ thống và trả về stdout, stderr, exit code (tự động cấu hình PATH và đồng bộ môi trường)."""
-    if env is None:
+    # Nếu env được truyền vào chủ động (tức là để chạy app cụ thể như Hermes)
+    if env is not None:
+        # Đồng bộ các biến _USER sang biến chuẩn cho app đó nhận diện
+        for key in ["APPDATA", "LOCALAPPDATA", "USERPROFILE"]:
+            user_key = f"{key}_USER"
+            if user_key in env and env[user_key]:
+                env[key] = env[user_key]
+        if "USERPROFILE" in env and env["USERPROFILE"]:
+            env["HOME"] = env["USERPROFILE"]
+    else:
+        # Nếu chạy lệnh PM2 nội bộ (pm2 jlist, pm2 stop, etc.)
         env = os.environ.copy()
-        
-    # Đồng bộ hóa các biến môi trường của Admin sang biến chuẩn của Windows phục vụ Service SYSTEM
-    for key in ["APPDATA", "LOCALAPPDATA", "USERPROFILE"]:
-        user_key = f"{key}_USER"
-        if user_key in env and env[user_key]:
-            env[key] = env[user_key]
-            
-    if "USERPROFILE" in env and env["USERPROFILE"]:
-        env["HOME"] = env["USERPROFILE"]
-        
+        # Loại bỏ việc ghi đè APPDATA, USERPROFILE, LOCALAPPDATA sang Admin để tránh lỗi phân quyền (EPERM) khi Node.js của SYSTEM nạp file Daemon.js
+        for key in ["APPDATA", "LOCALAPPDATA", "USERPROFILE"]:
+            user_key = f"{key}_USER"
+            # Khôi phục lại biến môi trường mặc định của Windows Service (SYSTEM)
+            # NSSM lưu các biến môi trường gốc của SYSTEM trong môi trường trước khi chúng ta ghi đè
+            # Nhưng ở đây để đơn giản, nếu chạy dưới SYSTEM, chúng ta chỉ cần xóa các biến bị ghi đè để Node.js dùng biến mặc định của SYSTEM.
+            # Trên Windows, nếu xóa APPDATA khỏi env thì Node.js sẽ lấy mặc định của USERPROFILE.
+            # Do đó cách tốt nhất là nếu có biến USERPROFILE_SYSTEM (hoặc ta khôi phục từ biến môi trường gốc).
+            # Chờ đã! NSSM không lưu USERPROFILE của SYSTEM vào biến khác, nhưng Windows mặc định khởi chạy Service với:
+            # USERPROFILE = C:\Windows\system32\config\systemprofile (hoặc tương tự)
+            # APPDATA = C:\Windows\system32\config\systemprofile\AppData\Roaming
+            # Vậy nếu chúng ta phát hiện đang chạy dưới Service SYSTEM, làm thế nào để lấy lại các biến này?
+            # Đơn giản là NSSM cung cấp tham số AppEnvironmentExtra. Khi cài đặt, chúng ta chỉ định:
+            # APPDATA_USER="%APPDATA%", USERPROFILE_USER="%USERPROFILE%"
+            # Điều đó có nghĩa là các biến APPDATA, USERPROFILE hiện tại của tiến trình Uvicorn thực chất CŨNG LÀ của SYSTEM (vì Uvicorn khởi chạy dưới SYSTEM nên %APPDATA% lúc Uvicorn chạy là của SYSTEM!).
+            # Chỉ khi Uvicorn gọi lệnh và ta ghi đè env[key] = env[user_key] (tức là ghi đè bằng Admin), thì nó mới thành Admin!
+            # Cho nên, nếu env=None, chúng ta chỉ cần sao chép os.environ và TUYỆT ĐỐI KHÔNG ghi đè là tự động nó dùng của SYSTEM!
+            pass
+
     # Tự động bổ sung đường dẫn NPM Global vào PATH trên Windows để tìm thấy pm2
     appdata = env.get("APPDATA")
     if appdata:
@@ -35,9 +54,13 @@ def run_cmd(args, env=None):
         if npm_path not in env.get("PATH", ""):
             env["PATH"] = env.get("PATH", "") + os.pathsep + npm_path
             
-    # Sử dụng shell=True trên Windows để nhận diện các lệnh npm, pm2
-    result = subprocess.run(args, shell=True, capture_output=True, text=True, encoding='utf-8', errors='ignore', env=env)
-    return result.stdout, result.stderr, result.returncode
+    # Sử dụng shell=True trên Windows để nhận diện các lệnh npm, pm2 (có timeout bảo vệ 8s)
+    try:
+        result = subprocess.run(args, shell=True, capture_output=True, text=True, env=env, timeout=8, encoding='utf-8', errors='ignore')
+        return result.stdout, result.stderr, result.returncode
+    except subprocess.TimeoutExpired:
+        print(f"[TIMEOUT] Lệnh chạy quá hạn 8s: {args}")
+        return "", "Timeout", -9
 
 def is_pm2_installed():
     """Kiểm tra xem PM2 đã được cài đặt chưa (bền bỉ, tránh lỗi rpc.sock)."""
